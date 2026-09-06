@@ -22,9 +22,17 @@ Crie ou gerencie a chave no [Google AI Studio](https://aistudio.google.com/apike
 
 ## Uso diário
 
+Para trabalhar em um projeto sem alterar os arquivos do agente, entre primeiro na pasta desejada. O `run.sh` preserva essa pasta como workspace:
+
 ```bash
-cd ~/gemini-termux-agent
-./run.sh
+mkdir -p ~/projetos/meu-app
+cd ~/projetos/meu-app
+~/gemini-termux-agent/run.sh
+```
+
+```bash
+cd ~/projetos/meu-app
+~/gemini-termux-agent/run.sh
 ```
 
 Exemplos de pedidos:
