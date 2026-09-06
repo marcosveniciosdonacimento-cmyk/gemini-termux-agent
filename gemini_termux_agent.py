@@ -80,7 +80,13 @@ def configure_key(config: dict[str, Any]) -> dict[str, Any]:
     config["api_key"] = key
     config.setdefault("model", DEFAULT_MODEL)
     save_config(config)
-    print("Chave salva com permissões restritas.")
+    try:
+        gemini(config, [{"role": "user", "parts": [{"text": "Responda apenas: OK"}]}])
+    except Exception:
+        config.pop("api_key", None)
+        save_config(config)
+        raise
+    print("Chave validada e salva com permissões restritas.")
     return config
 
 
