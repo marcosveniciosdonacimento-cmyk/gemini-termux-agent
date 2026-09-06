@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+config.json
+artifacts/
+*.zip
+*.apk
+.gradle/
+build/
+dist/
+node_modules/
