@@ -4,7 +4,12 @@ cd "$(dirname "$0")"
 
 pkg update -y
 pkg upgrade -y
-pkg install -y python git zip unzip
+printf '\nInstalando ferramentas base de desenvolvimento...\n'
+pkg install -y \
+  python git zip unzip \
+  openjdk-17 gradle \
+  clang make cmake pkg-config \
+  findutils coreutils sed grep tar
 termux-setup-storage || true
 chmod 700 gemini_termux_agent.py run.sh setup.sh
 mkdir -p "$HOME/.config/gemini-termux-agent"

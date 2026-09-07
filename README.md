@@ -92,7 +92,7 @@ gemini --model gemini-2.5-flash
 
 Também é possível escolher o modelo por número dentro do agente. A lista mostra `gemini-3.5-flash`, `gemini-3.7-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` e `gemini-2.5-pro`, além de permitir digitar outro nome. A indicação de “grátis” depende da cota e da disponibilidade atuais da sua conta no Google AI Studio; o agente não pode garantir que todo modelo permanecerá gratuito.
 
-Na instalação são preparados o Python, Git, Zip, Unzip, atualização dos pacotes do Termux e acesso ao armazenamento. Dependências específicas — por exemplo, ferramentas de um projeto Android, Node ou Python — só podem ser conhecidas depois que você informa o tipo de aplicação; nesse momento o agente as instala automaticamente dentro do projeto.
+Na instalação são preparados, antes de abrir o agente, o Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep, tar, a atualização dos pacotes do Termux e o acesso ao armazenamento. Assim Java e Gradle não devem ser solicitados no meio do primeiro projeto. Dependências específicas — por exemplo, bibliotecas Kotlin, plugins Gradle, Node ou Python — ainda podem variar conforme o aplicativo e são instaladas durante a construção.
 
 O agente não envia arquivos para a internet. Ele apenas copia artefatos para a pasta local de Downloads do Android:
 
