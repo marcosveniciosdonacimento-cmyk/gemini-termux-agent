@@ -52,9 +52,9 @@ cd ~/gemini-termux-agent
 bash setup.sh
 ```
 
-O instalador atualiza os pacotes, tenta instalar três vezes o conjunto base e configura o armazenamento. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar.
+O instalador atualiza os pacotes e instala cada ferramenta individualmente, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/...] Instalando pacote: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto base inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar. Depois ele processa, também individualmente, as ferramentas extras para web, pesquisa e mídia.
 
-Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. Se uma tentativa de pacote falhar, o instalador atualiza os índices e tenta novamente. Depois de três falhas, ele informa o problema e permite executar `bash setup.sh` novamente sem perder o que já foi instalado.
+Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. Cada pacote tem até três tentativas; se um pacote base falhar, a instalação para para não iniciar o agente incompleto. Se um pacote extra não estiver disponível, ele mostra um aviso e continua. Execute `bash setup.sh` novamente depois de corrigir a internet ou o espelho; os pacotes já instalados serão reaproveitados pelo Termux.
 
 ### 6. Cadastrar a chave
 

@@ -41,6 +41,7 @@ htop
 tree
 
 Observações:
+- O `setup.sh` processa cada pacote individualmente, mostra o progresso e só inicia o agente depois de terminar a fila.
 - O Termux também instala dependências adicionais exigidas por esses pacotes.
 - A lista de dependências adicionais pode variar conforme a arquitetura, a versão do Termux e os pacotes já instalados.
 - `termux-setup-storage` não é um pacote: é um comando que cria o acesso do Termux ao armazenamento compartilhado do Android.
