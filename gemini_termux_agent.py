@@ -152,10 +152,10 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
             if exc.code in (401, 403):
                 raise RuntimeError("A chave foi recusada. Verifique/restrinja sua chave no Google AI Studio.") from exc
             last_error = f"HTTP {exc.code}: {detail[:500]}"
-            if exc.code != 503:
+            if exc.code not in (429, 500, 502, 503, 504):
                 raise RuntimeError(last_error) from exc
             if attempt < len(models_to_try) - 1:
-                time.sleep(2)
+                time.sleep(5 if exc.code == 429 else 2)
         except urllib.error.URLError as exc:
             raise RuntimeError(f"Falha de rede ao acessar a Gemini API: {exc.reason}") from exc
     raise RuntimeError(f"Todos os modelos estão indisponíveis temporariamente. Último erro: {last_error}")
@@ -338,8 +338,15 @@ def execute_command(root: Path, command: str) -> tuple[int, str]:
     env = os.environ.copy()
     env.pop("GEMINI_API_KEY", None)
     env.pop("GOOGLE_API_KEY", None)
-    completed = subprocess.run(command, cwd=root, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=1800, env=env)
-    return completed.returncode, redact(completed.stdout[-MAX_OUTPUT:])
+    script = "set -e\n" + command
+    try:
+        completed = subprocess.run(script, cwd=root, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=1800, env=env)
+        return completed.returncode, redact(completed.stdout[-MAX_OUTPUT:])
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode("utf-8", errors="replace")
+        return 124, redact((output or "") + "\nTempo limite de 30 minutos atingido.")
+    except OSError as exc:
+        return 127, redact(f"Falha ao iniciar comando: {exc}")
 
 
 def extract_commands(answer: str) -> list[str]:
@@ -393,11 +400,11 @@ def execute_commands(root: Path, commands: list[str], mode: str = "agora", start
         code, output = execute_command(root, command)
         print(output or "(sem saída)")
         print(f"Código de saída: {code}")
-        completed_any = True
         if code != 0:
             (root / ".gemini-agent-last-error.txt").write_text(f"Comando:\n{command}\n\nSaída:\n{output}\n", encoding="utf-8")
             print("A etapa falhou; o próximo ciclo tentará corrigir automaticamente.")
-            return completed_any
+            return False
+        completed_any = True
         state_file.write_text(json.dumps({"mode": mode, "commands": commands, "next_index": index}, ensure_ascii=False, indent=2), encoding="utf-8")
         if index < len(commands):
             if pause_seconds >= 60:

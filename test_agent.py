@@ -25,6 +25,10 @@ class AgentTests(unittest.TestCase):
         answer = """Faça assim:\n```bash\npwd\npython -m unittest\n```"""
         self.assertEqual(agent.extract_commands(answer), ["pwd\npython -m unittest"])
 
+    def test_extract_preserves_here_doc_block(self):
+        answer = """```bash\ncat > settings.gradle <<'EOF'\nrootProject.name = 'HelloWorld'\nEOF\n```"""
+        self.assertIn("cat > settings.gradle", agent.extract_commands(answer)[0])
+
     def test_command_pause_is_positive(self):
         self.assertGreater(agent.COMMAND_PAUSE_SECONDS, 0)
         self.assertEqual(agent.NIGHT_PAUSE_SECONDS, 1800)
