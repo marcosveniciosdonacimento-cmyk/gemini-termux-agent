@@ -1,131 +1,186 @@
 # Gemini Termux Agent
 
-Um agente local para Termux que usa a Gemini API como assistente de desenvolvimento. Você conversa por prompts, o Gemini analisa o workspace e sugere passos; o Termux mostra os comandos e pede confirmação antes de executá-los. Assim, projetos podem ser criados, testados, compilados e empacotados no próprio telefone.
+Agente local de desenvolvimento para Termux usando a Gemini API. O código é público; a chave Gemini, a configuração e os projetos ficam somente no aparelho de cada usuário.
 
-> **Importante:** o GitHub armazena o código, não executa comandos no seu celular. Depois do clone, todas as ações acontecem localmente no Termux e dependem das ferramentas do projeto escolhido, como Android SDK/Gradle para um app Android.
+> O GitHub armazena o código. A execução acontece localmente no Termux e depende das ferramentas disponíveis no aparelho.
 
-## Instalação no Termux
+## Instalação oficial do zero
 
-Instale o [Termux pelo F-Droid ou GitHub oficial](https://github.com/termux/termux-app), abra-o e execute:
+Instale o [Termux pelo F-Droid ou pelo GitHub oficial](https://github.com/termux/termux-app). Abra o Termux e execute os comandos abaixo, um por vez.
 
-### Instalação automática
-
-Como o repositório é público, você pode fazer praticamente tudo com um único comando:
+### 1. Escolher o espelho do Termux
 
 ```bash
-pkg update -y && pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent/main/install.sh | bash
+termux-change-repo
 ```
 
-Esse comando atualiza os pacotes do Termux, instala as ferramentas, solicita a permissão de armazenamento, baixa/atualiza o agente, cria o comando global `gemini`, solicita e valida a chave e abre o menu de projetos. Depois da primeira instalação, basta executar:
+Na primeira tela, mantenha **Mirror group** selecionado e pressione Enter. Na segunda tela, mantenha **All mirrors** selecionado e pressione Enter. Aguarde voltar ao terminal.
+
+### 2. Atualizar o Termux
+
+```bash
+pkg update -y
+```
+
+```bash
+pkg upgrade -y
+```
+
+### 3. Instalar Git
+
+```bash
+pkg install -y git
+```
+
+### 4. Baixar o repositório público
+
+```bash
+cd ~
+```
+
+```bash
+git clone https://github.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent.git
+```
+
+```bash
+cd ~/gemini-termux-agent
+```
+
+### 5. Executar o instalador
+
+```bash
+bash setup.sh
+```
+
+O instalador atualiza os pacotes, tenta instalar três vezes o conjunto base e configura o armazenamento. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar.
+
+Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. Se uma tentativa de pacote falhar, o instalador atualiza os índices e tenta novamente. Depois de três falhas, ele informa o problema e permite executar `bash setup.sh` novamente sem perder o que já foi instalado.
+
+### 6. Cadastrar a chave
+
+Quando aparecer:
+
+```text
+Cole sua chave Gemini:
+```
+
+crie ou copie uma chave no [Google AI Studio](https://aistudio.google.com/apikey), cole no Termux e pressione Enter. A chave não aparece na tela enquanto é digitada. Ela é salva somente em:
+
+```text
+~/.config/gemini-termux-agent/config.json
+```
+
+Esse arquivo não é enviado ao GitHub.
+
+## Uso diário
+
+Depois da instalação, abra o Termux e execute somente:
 
 ```bash
 gemini
 ```
 
-### Instalação manual
-
-Se preferir não executar um instalador remoto diretamente, use o fluxo abaixo:
-
-```bash
-pkg update -y && pkg install -y git
-cd ~
-git clone https://github.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent.git
-cd gemini-termux-agent
-bash setup.sh
-```
-
-O instalador instala Python, Git, Zip e Unzip e pede sua chave de forma oculta. A chave fica salva em `~/.config/gemini-termux-agent/config.json` com permissão `600`, fora do repositório. Também é possível usar a variável de ambiente `GEMINI_API_KEY`, que tem precedência.
-
-Crie ou gerencie a chave no [Google AI Studio](https://aistudio.google.com/apikey). Trate-a como uma senha, restrinja-a à Gemini API e configure alertas de uso/billing no Google Cloud.
-
-## Uso diário
-
-Para trabalhar em um projeto sem alterar os arquivos do agente, entre primeiro na pasta desejada. O `run.sh` preserva essa pasta como workspace:
-
-```bash
-mkdir -p ~/projetos/meu-app
-cd ~/projetos/meu-app
-~/gemini-termux-agent/run.sh
-```
-
-```bash
-cd ~/projetos/meu-app
-~/gemini-termux-agent/run.sh
-```
-
-Ao abrir, o agente mostra escolhas simples: perfil de IA **Alto**, **Baixo** ou **Rápido**; modelo Gemini numerado; e um projeto numerado em `~/projetos`. Você pode criar um projeto novo ou importar um ZIP gerado pelo AI Studio. Durante a instalação, o Termux também solicitará a permissão de armazenamento.
-
-Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência, sem pausa artificial. Essas etapas podem incluir criação de arquivos, instalação de dependências do projeto, configuração, testes e compilação — não ficam limitadas aos comandos básicos do Termux. O painel mostra `Construindo: ...`, depois `√` quando dá certo ou `X` quando falha. O próximo índice é salvo em `.gemini-agent-state.json`, então se o Termux for interrompido, a próxima abertura retoma a partir da etapa seguinte. Ao finalizar, APK, AAB e ZIP encontrados são enviados automaticamente para `~/storage/downloads/`.
-
-Os blocos de terminal são executados como blocos completos, incluindo comandos multilinha usados para criar arquivos. Se uma etapa falhar, o erro é salvo, enviado ao próximo ciclo do Gemini e o agente tenta corrigir e continuar automaticamente. Indisponibilidade temporária `503` da Gemini API também aciona retentativas e fallback entre modelos compatíveis.
-
-Se ocorrer falha de rede, o Termux exibe o erro e pergunta `Tentar novamente de onde parou? [S/n]`. Responda `S` ou apenas pressione Enter para continuar; responda `N` para pausar sem perder os arquivos nem o estado da etapa.
-
-Exemplos de pedidos:
+O agente mostra o perfil de IA, o modelo e o projeto. Depois você envia o prompt. Ao pressionar Enter, aparece imediatamente:
 
 ```text
-Crie um app Android simples de lista de tarefas neste workspace.
-Analise o projeto e corrija os testes que falharem.
-Compile o APK debug e me diga onde ficou o arquivo.
-Empacote o resultado para eu copiar para Downloads.
+OK — pedido recebido. Processando com o Gemini...
 ```
 
-Para aplicativos Android, informe sempre os dois dados no prompt: **nome do aplicativo** e **nome do pacote**. Exemplo: `Nome do app: HelloWorld; pacote: com.exemplo.helloworld`. O nome do pacote deve usar letras minúsculas, números e pontos, sem espaços. Durante a construção, o painel mostra os caminhos reais dos arquivos encontrados, como `app/src/main/AndroidManifest.xml`, seguidos de `√` quando concluídos ou `X` quando a etapa falha.
+Durante a construção, o painel mostra os caminhos reais dos arquivos:
 
-Comandos locais disponíveis dentro do agente:
+```text
+Construindo arquivo: app/src/main/AndroidManifest.xml ...
+app/src/main/AndroidManifest.xml √
+```
 
-| Comando | Função |
-| --- | --- |
-| `/help` | Mostra exemplos e comandos |
-| `/files` | Lista os arquivos visíveis do workspace |
-| `/workspace CAMINHO` | Troca o diretório de trabalho e salva a preferência |
-| `/package` | Cria um ZIP em `artifacts/` |
-| `/quit` | Sai do agente |
+Quando uma etapa falhar:
 
-A opção **Importar ZIP do AI Studio** aceita um arquivo `.zip`, valida os caminhos internos contra traversal e extrai o projeto em uma nova pasta dentro de `~/projetos`.
+```text
+Construindo arquivo: app/src/main/AndroidManifest.xml ...
+app/src/main/AndroidManifest.xml X
+```
 
-O modelo padrão é `gemini-3.5-flash`. Para trocar o modelo, use:
+O erro é salvo e enviado ao Gemini para correção automática. O agente continua sem uma pausa artificial ou limite fixo de etapas. Em falhas de rede, ele mostra o erro e pergunta se deve tentar novamente do ponto salvo:
+
+```text
+Tentar novamente de onde parou? [S/n]
+```
+
+Responda `S` ou pressione Enter para continuar. Responda `N` para pausar preservando os arquivos.
+
+Ao encontrar APK, AAB ou ZIP, o agente copia o resultado para:
+
+```text
+~/storage/downloads/
+```
+
+## Primeiro teste Android
+
+Para aplicativos Android, informe sempre o nome do aplicativo e o nome do pacote. O pacote deve usar letras minúsculas, números e pontos, sem espaços.
+
+```text
+Crie um aplicativo Android 14.
+
+Nome do aplicativo: HelloWorld
+Nome do pacote: com.exemplo.helloworld
+
+O aplicativo deve mostrar apenas “Hello, world!” centralizado na tela. Use Kotlin, instale as dependências necessárias, crie todos os arquivos do projeto, compile o APK debug, corrija automaticamente qualquer erro e copie o APK final para ~/storage/downloads/.
+```
+
+## Modelo e perfil
+
+O modelo padrão é `gemini-3.5-flash`. Antes de iniciar o projeto, o agente permite selecionar um modelo por número ou digitar outro nome. A disponibilidade gratuita depende da cota da conta Google AI Studio.
+
+Para trocar o modelo diretamente:
 
 ```bash
 gemini --model gemini-2.5-flash
 ```
 
-Também é possível escolher o modelo por número dentro do agente. A lista mostra `gemini-3.5-flash`, `gemini-3.7-flash`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` e `gemini-2.5-pro`, além de permitir digitar outro nome. A indicação de “grátis” depende da cota e da disponibilidade atuais da sua conta no Google AI Studio; o agente não pode garantir que todo modelo permanecerá gratuito.
+Os perfis **Alto**, **Baixo** e **Rápido** ajustam a resposta da IA. O perfil não altera a chave nem publica dados.
 
-Na instalação são preparados, antes de abrir o agente, o Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep, tar, a atualização dos pacotes do Termux e o acesso ao armazenamento. O instalador tenta esse conjunto até três vezes, atualizando os índices entre tentativas e reaproveitando o que já foi instalado. Assim Java e Gradle não devem ser solicitados no meio do primeiro projeto. Dependências específicas — por exemplo, bibliotecas Kotlin, plugins Gradle, Node ou Python — ainda podem variar conforme o aplicativo e são instaladas durante a construção.
+## Projetos e comandos
 
-O agente não envia arquivos para a internet. Ele apenas copia artefatos para a pasta local de Downloads do Android:
+Os projetos ficam em `~/projetos`. O menu permite selecionar um projeto existente, criar um novo ou importar um ZIP do AI Studio.
 
-```bash
-termux-setup-storage
-cp artifacts/seu-arquivo.zip ~/storage/downloads/
-```
+| Comando | Função |
+| --- | --- |
+| `/help` | Mostra ajuda |
+| `/files` | Lista arquivos visíveis |
+| `/workspace CAMINHO` | Troca o workspace |
+| `/package` | Cria um ZIP em `artifacts/` |
+| `/quit` | Sai do agente |
 
-Para criar um link de download, use um serviço de hospedagem ou GitHub Releases conscientemente; o repositório por si só não publica artefatos locais automaticamente.
-
-## Segurança e limites
-
-O Gemini recebe o contexto textual do workspace e responde pela API. Ele não recebe a sua chave no prompt. O modo automático executa comandos dentro do workspace sem confirmação individual, mas bloqueia alguns padrões destrutivos óbvios, remove a chave do ambiente, limita o trabalho ao workspace configurado e redige possíveis segredos da saída. Revise o prompt e use o modo Madrugada apenas em projetos confiáveis.
-
-Essas proteções não substituem revisão humana: shell é poderoso e comandos sugeridos por um modelo devem ser lidos antes da confirmação. Não execute projetos desconhecidos com permissões elevadas e não use `sudo`/root para tarefas comuns.
-
-## Modelos
-
-O padrão é `gemini-3.5-flash`. Você pode trocar o modelo:
+## Atualizar uma instalação existente
 
 ```bash
-./run.sh --model gemini-2.5-flash
+cd ~/gemini-termux-agent
 ```
 
-A configuração é mantida localmente. Consulte a [lista oficial de modelos](https://ai.google.dev/gemini-api/docs/models) para verificar disponibilidade, custo e mudanças.
+```bash
+git pull
+```
+
+```bash
+ln -sf "$PWD/run.sh" "$PREFIX/bin/gemini"
+```
+
+Para atualizar também as ferramentas base:
+
+```bash
+bash setup.sh
+```
+
+A chave já configurada será mantida.
+
+## Segurança
+
+A chave não é enviada dentro dos prompts nem exposta ao shell dos comandos executados. O agente redige possíveis segredos da saída, remove variáveis de chave do ambiente dos comandos e bloqueia alguns padrões destrutivos óbvios. Mesmo assim, o modo automático executa comandos dentro do workspace; use projetos e ZIPs confiáveis.
 
 ## Desenvolvimento e testes
 
 ```bash
 python -m unittest -v
-python -m py_compile gemini_termux_agent.py
 ```
 
-## Licença
-
-MIT. Consulte `LICENSE`.
+O repositório é público e está disponível em [github.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent](https://github.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent).
