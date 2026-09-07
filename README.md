@@ -74,6 +74,8 @@ Esse arquivo não é enviado ao GitHub.
 
 O cadastro permite escolher **Gemini**, **Groq** ou **OpenRouter**. Depois de validar uma chave, o agente pergunta `Cadastrar outra chave? [s/N]`; responda `S` para adicionar outro provedor ou `N` para terminar. As chaves ficam separadas por provedor no arquivo local. Antes de cada projeto, escolha o provedor cadastrado e depois o modelo correspondente. Groq e OpenRouter usam suas APIs compatíveis com OpenAI; os modelos e cotas gratuitas dependem das regras atuais de cada serviço.
 
+Se a cota ou o limite de requisições acabar, o agente informa o erro e pergunta `Continuar com outro provedor ou modelo? [S/n]`. Com `S`, você escolhe outra opção numerada e a tarefa retoma o ponto salvo; com `N`, o projeto permanece preservado e a execução é pausada.
+
 ## Uso diário
 
 Depois da instalação, abra o Termux e execute somente:
@@ -109,6 +111,10 @@ Tentar novamente de onde parou? [S/n]
 ```
 
 Responda `S` ou pressione Enter para continuar. Responda `N` para pausar preservando os arquivos.
+
+O instalador também tenta preparar ferramentas para sites, pesquisa e mídia: `curl`, `wget`, `openssl`, `ca-certificates`, `jq`, `ripgrep`, `libffi`, `openssl-tool`, `rust`, `binutils`, `sqlite`, `chromium`, `ffmpeg`, `procps`, `htop` e `tree`. Essas ferramentas são opcionais e instaladas individualmente; se uma não estiver disponível no repositório do Termux, o instalador avisa e continua com as demais.
+
+Com essas ferramentas, o agente pode criar sites estáticos ou projetos web no workspace, executar servidores locais, pesquisar/baixar recursos quando permitido pelo prompt e preparar arquivos para publicação. A publicação em um serviço externo exige credenciais, domínio ou token próprios e uma instrução explícita; o agente não publica em contas de terceiros sem essas informações.
 
 Ao encontrar APK, AAB ou ZIP, o agente copia o resultado para:
 

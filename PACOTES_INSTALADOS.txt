@@ -21,8 +21,28 @@ sed
 grep
 tar
 
+Ferramentas extras solicitadas para web, pesquisa e mídia:
+
+curl
+wget
+openssl
+ca-certificates
+jq
+ripgrep
+libffi
+openssl-tool
+rust
+binutils
+sqlite
+chromium
+ffmpeg
+procps
+htop
+tree
+
 Observações:
 - O Termux também instala dependências adicionais exigidas por esses pacotes.
 - A lista de dependências adicionais pode variar conforme a arquitetura, a versão do Termux e os pacotes já instalados.
 - `termux-setup-storage` não é um pacote: é um comando que cria o acesso do Termux ao armazenamento compartilhado do Android.
 - O script tenta instalar os pacotes até três vezes e atualiza os índices entre as tentativas.
+- As ferramentas extras são tentadas individualmente duas vezes. Se uma não existir no repositório ou falhar, o instalador mostra um aviso e continua com as demais.

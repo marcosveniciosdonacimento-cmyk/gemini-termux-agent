@@ -427,6 +427,12 @@ def is_network_error(text: str) -> bool:
     return any(marker in lowered for marker in markers)
 
 
+def is_quota_error(text: str) -> bool:
+    lowered = text.lower()
+    markers = ("quota", "rate limit", "resource exhausted", "limit reached", "too many requests", "http 429", "cota", "limite diário", "limite diario")
+    return any(marker in lowered for marker in markers)
+
+
 def list_files(root: Path) -> str:
     items = []
     for path in sorted(root.rglob("*")):
@@ -574,6 +580,16 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
             answer = ask_once(config, root, current_prompt)
         except Exception as exc:
             message = str(exc)
+            if is_quota_error(message):
+                print(f"\nCOTA ESGOTADA: {message}")
+                retry = input("Continuar com outro provedor ou modelo? [S/n] ").strip().lower()
+                if retry in {"", "s", "sim", "y", "yes"}:
+                    choose_provider(config)
+                    choose_model(config)
+                    print("Retomando exatamente do ponto interrompido...")
+                    continue
+                print("Execução pausada. O projeto foi preservado.")
+                break
             print(f"\nERRO DE REDE/API: {message}")
             if is_network_error(message):
                 retry = input("Tentar novamente de onde parou? [S/n] ").strip().lower()
