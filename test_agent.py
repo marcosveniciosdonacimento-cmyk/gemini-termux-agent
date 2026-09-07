@@ -33,6 +33,11 @@ class AgentTests(unittest.TestCase):
         command = "cat > app/src/main/AndroidManifest.xml <<'EOF'\n<manifest/>\nEOF"
         self.assertIn("app/src/main/AndroidManifest.xml", agent.file_targets(command))
 
+    def test_network_error_detection(self):
+        self.assertTrue(agent.is_network_error("Gemini API HTTP 503: unavailable"))
+        self.assertTrue(agent.is_network_error("Temporary failure in name resolution"))
+        self.assertFalse(agent.is_network_error("arquivo Kotlin inválido"))
+
     def test_command_pause_is_positive(self):
         self.assertGreater(agent.COMMAND_PAUSE_SECONDS, 0)
         self.assertEqual(agent.NIGHT_PAUSE_SECONDS, 1800)

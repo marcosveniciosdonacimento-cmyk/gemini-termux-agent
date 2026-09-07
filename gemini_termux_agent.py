@@ -322,6 +322,17 @@ def redact(text: str) -> str:
     return re.sub(r"(?i)(AIza[0-9A-Za-z_-]{20,}|(?:api[_-]?key|token|password|secret)\s*[=:]\s*\S+)", "[REDACTED]", text)
 
 
+def is_network_error(text: str) -> bool:
+    lowered = text.lower()
+    markers = (
+        "network is unreachable", "network unreachable", "connection reset", "connection refused",
+        "connection timed out", "timed out", "temporary failure in name resolution", "name or service not known",
+        "could not resolve", "unable to resolve", "failed to connect", "http 429", "http 500",
+        "http 502", "http 503", "http 504", "unavailable", "sem conexão", "erro de rede",
+    )
+    return any(marker in lowered for marker in markers)
+
+
 def list_files(root: Path) -> str:
     items = []
     for path in sorted(root.rglob("*")):
@@ -465,7 +476,19 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
     round_number = 0
     while True:
         round_number += 1
-        answer = ask_once(config, root, current_prompt)
+        try:
+            answer = ask_once(config, root, current_prompt)
+        except Exception as exc:
+            message = str(exc)
+            print(f"\nERRO DE REDE/API: {message}")
+            if is_network_error(message):
+                retry = input("Tentar novamente de onde parou? [S/n] ").strip().lower()
+                if retry in {"", "s", "sim", "y", "yes"}:
+                    print("Retomando a partir do ponto salvo...")
+                    continue
+                print("Execução pausada. Os arquivos e o estado foram preservados.")
+                break
+            raise
         print(f"\nGemini (etapa {round_number})>\n{answer}")
         commands = extract_commands(answer)
         if not commands:
@@ -481,6 +504,11 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
         if not execute_commands(root, commands, mode, profile_name=profile):
             error_file = root / ".gemini-agent-last-error.txt"
             error = error_file.read_text(encoding="utf-8", errors="replace")[-6000:] if error_file.exists() else "erro desconhecido"
+            if is_network_error(error):
+                retry = input("Erro de rede durante a etapa. Tentar novamente de onde parou? [S/n] ").strip().lower()
+                if retry not in {"", "s", "sim", "y", "yes"}:
+                    print("Execução pausada. Os arquivos e o estado foram preservados.")
+                    break
             current_prompt = (
                 "A etapa anterior falhou. Corrija automaticamente o problema e continue o pedido original. "
                 "Não repita a causa sem corrigir. Verifique o workspace e forneça um bloco bash completo com a correção e os próximos passos.\n\n"

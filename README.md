@@ -59,6 +59,8 @@ Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequê
 
 Os blocos de terminal são executados como blocos completos, incluindo comandos multilinha usados para criar arquivos. Se uma etapa falhar, o erro é salvo, enviado ao próximo ciclo do Gemini e o agente tenta corrigir e continuar automaticamente. Indisponibilidade temporária `503` da Gemini API também aciona retentativas e fallback entre modelos compatíveis.
 
+Se ocorrer falha de rede, o Termux exibe o erro e pergunta `Tentar novamente de onde parou? [S/n]`. Responda `S` ou apenas pressione Enter para continuar; responda `N` para pausar sem perder os arquivos nem o estado da etapa.
+
 Exemplos de pedidos:
 
 ```text
