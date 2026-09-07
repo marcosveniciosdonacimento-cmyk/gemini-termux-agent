@@ -55,13 +55,18 @@ MODEL_OPTIONS = [
 SYSTEM_PROMPT = """Você é o Gemini Termux Agent, um assistente de desenvolvimento local.
 Você ajuda o usuário a criar e compilar projetos no workspace atual.
 Responda em português do Brasil quando o usuário escrever em português.
-Se precisar executar algo, proponha comandos explícitos em um bloco ```bash``` e explique o objetivo.
+	Para alterar o workspace, use obrigatoriamente as ferramentas nativas `create_file` e `run_shell_command`; não simule a criação escrevendo apenas texto. Use `create_file` para cada arquivo e `run_shell_command` para instalar, testar e compilar. Confira o retorno das ferramentas e corrija erros reais.
 Quando o usuário pedir um projeto, não pare apenas na explicação ou na instalação: entregue os comandos completos para criar os arquivos, configurar, testar, compilar e exportar o resultado. Depois de cada etapa, aguarde o resultado informado pelo agente local e continue o plano até concluir.
 Para aplicativos Android, o pedido precisa conter explicitamente o nome do aplicativo e o nome do pacote Java/Kotlin (por exemplo, com.example.helloworld). Se um deles estiver ausente, peça esses dois dados antes de criar o projeto.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
 Não invente que executou comandos: apenas o agente local pode executar comandos, e ele os executará automaticamente dentro do workspace.
 Prefira comandos reproduzíveis, sem apagar dados e sem ações destrutivas.
-"""
+	"""
+
+TOOL_DECLARATIONS = [{"functionDeclarations": [
+    {"name": "create_file", "description": "Cria ou sobrescreve um arquivo dentro do workspace real.", "parameters": {"type": "OBJECT", "properties": {"path": {"type": "STRING"}, "content": {"type": "STRING"}}, "required": ["path", "content"]}},
+    {"name": "run_shell_command", "description": "Executa um comando shell no workspace real e devolve código e saída.", "parameters": {"type": "OBJECT", "properties": {"command": {"type": "STRING"}}, "required": ["command"]}},
+]}]
 
 
 def ensure_config_dir() -> None:
@@ -186,6 +191,36 @@ def extract_text(payload: dict[str, Any]) -> str:
     return "\n".join(pieces).strip()
 
 
+def execute_tool(root: Path, name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Executa uma ferramenta solicitada pela API e retorna sempre uma resposta estruturada."""
+    try:
+        if name == "create_file":
+            path = safe_path(root, str(args.get("path", "")))
+            content = str(args.get("content", ""))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+            print(f"Construindo arquivo: {path.relative_to(root)} √", flush=True)
+            return {"ok": True, "tool": name, "path": str(path.relative_to(root)), "message": "Arquivo criado no disco real."}
+        if name == "run_shell_command":
+            command = str(args.get("command", "")).strip()
+            if not command:
+                raise ValueError("Comando vazio.")
+            if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
+                raise ValueError("Comando bloqueado por segurança.")
+            print(f"Construindo: {command[:100]} ...", flush=True)
+            code, output = execute_command(root, command)
+            if code != 0:
+                print("X", flush=True)
+                return {"ok": False, "tool": name, "exit_code": code, "output": output, "message": "O comando falhou; corrija e tente novamente."}
+            print("√", flush=True)
+            return {"ok": True, "tool": name, "exit_code": 0, "output": output[-MAX_OUTPUT:]}
+        raise ValueError(f"Ferramenta desconhecida: {name}")
+    except (OSError, ValueError, KeyError) as exc:
+        message = f"Falha real no armazenamento ou ferramenta: {exc}"
+        print(f"X {message}", flush=True)
+        return {"ok": False, "tool": name, "error": message, "message": "A ferramenta falhou; corrija o erro usando o retorno."}
+
+
 def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str = SYSTEM_PROMPT) -> str:
     key = get_key(config)
     if not key:
@@ -193,25 +228,36 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
     model = config.get("model", DEFAULT_MODEL)
     models_to_try = [model] + [candidate for candidate in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.7-flash"] if candidate != model]
     profile = AI_PROFILES.get(config.get("ai_profile", "alto"), AI_PROFILES["alto"])
-    body = {
-        "system_instruction": {"parts": [{"text": system}]},
-        "contents": contents,
-        "generationConfig": {"temperature": profile["temperature"], "maxOutputTokens": profile["max_output_tokens"]},
-    }
     last_error = ""
     for attempt, candidate_model in enumerate(models_to_try):
-        request = urllib.request.Request(
-            API_URL.format(model=candidate_model),
-            data=json.dumps(body).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": key},
-            method="POST",
-        )
         try:
-            with urllib.request.urlopen(request, timeout=180) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            text = extract_text(payload)
-            if not text:
-                raise RuntimeError(f"A API não retornou texto: {json.dumps(payload)[:500]}")
+            working_contents = list(contents)
+            for _ in range(100):
+                body = {
+                    "system_instruction": {"parts": [{"text": system}]},
+                    "contents": working_contents,
+                    "tools": TOOL_DECLARATIONS,
+                    "generationConfig": {"temperature": profile["temperature"], "maxOutputTokens": profile["max_output_tokens"]},
+                }
+                request = urllib.request.Request(API_URL.format(model=candidate_model), data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")
+                with urllib.request.urlopen(request, timeout=180) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                candidate = (payload.get("candidates") or [{}])[0]
+                response_content = candidate.get("content", {})
+                calls = [part.get("functionCall") for part in response_content.get("parts", []) if part.get("functionCall")]
+                if not calls:
+                    text = extract_text(payload)
+                    if not text:
+                        raise RuntimeError(f"A API não retornou texto: {json.dumps(payload)[:500]}")
+                    break
+                working_contents.append(response_content)
+                response_parts = []
+                for call in calls:
+                    result = execute_tool(workspace_root(config), call.get("name", ""), call.get("args", {}))
+                    response_parts.append({"functionResponse": {"name": call.get("name", ""), "response": result}})
+                working_contents.append({"role": "user", "parts": response_parts})
+            else:
+                raise RuntimeError("O modelo excedeu o limite de chamadas de ferramenta sem concluir a tarefa.")
             if candidate_model != model:
                 print(f"Modelo {model} indisponível; usando temporariamente {candidate_model}.")
             return text
@@ -504,6 +550,7 @@ def package_project(root: Path) -> Path:
 def copy_artifacts_to_downloads(root: Path) -> list[Path]:
     downloads = Path.home() / "storage" / "downloads"
     if not downloads.exists():
+        print(f"ERRO DE ARMAZENAMENTO: pasta de Downloads não encontrada: {downloads}. Execute termux-setup-storage.", flush=True)
         return []
     candidates = [
         path for path in root.rglob("*")
@@ -514,8 +561,11 @@ def copy_artifacts_to_downloads(root: Path) -> list[Path]:
     copied: list[Path] = []
     for source in candidates:
         target = downloads / source.name
-        target.write_bytes(source.read_bytes())
-        copied.append(target)
+        try:
+            target.write_bytes(source.read_bytes())
+            copied.append(target)
+        except OSError as exc:
+            print(f"ERRO DE ARMAZENAMENTO: não foi possível copiar {source} para {target}: {exc}", flush=True)
     return copied
 
 

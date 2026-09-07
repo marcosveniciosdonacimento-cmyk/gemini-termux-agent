@@ -43,6 +43,19 @@ class AgentTests(unittest.TestCase):
         self.assertTrue(agent.is_quota_error("resource exhausted"))
         self.assertFalse(agent.is_quota_error("arquivo não encontrado"))
 
+    def test_create_file_tool_writes_real_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            result = agent.execute_tool(root, "create_file", {"path": "app/Main.kt", "content": "fun main() {}"})
+            self.assertTrue(result["ok"])
+            self.assertEqual((root / "app/Main.kt").read_text(encoding="utf-8"), "fun main() {}")
+
+    def test_create_file_tool_reports_storage_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            result = agent.execute_tool(root, "create_file", {"path": "../outside.txt", "content": "x"})
+            self.assertFalse(result["ok"])
+
     def test_command_pause_is_positive(self):
         self.assertGreater(agent.COMMAND_PAUSE_SECONDS, 0)
         self.assertEqual(agent.NIGHT_PAUSE_SECONDS, 1800)
