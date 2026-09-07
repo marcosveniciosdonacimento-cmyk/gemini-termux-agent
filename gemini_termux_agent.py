@@ -47,7 +47,7 @@ Você ajuda o usuário a criar e compilar projetos no workspace atual.
 Responda em português do Brasil quando o usuário escrever em português.
 	Para alterar o workspace, use obrigatoriamente as ferramentas nativas `create_file` e `run_shell_command`; não simule a criação escrevendo apenas texto. Use `create_file` para cada arquivo e `run_shell_command` para instalar, testar e compilar. Confira o retorno das ferramentas e corrija erros reais.
 	O instalador já preparou as ferramentas essenciais antes desta sessão. Não execute `pkg install`, `pkg update` ou `pkg upgrade` durante um projeto. Consulte o inventário informado pelo agente e só instale uma dependência específica se ela realmente estiver ausente e for indispensável.
-Quando o usuário pedir um projeto, não pare apenas na explicação ou na instalação: entregue os comandos completos para criar os arquivos, configurar, testar, compilar e exportar o resultado. Depois de cada etapa, aguarde o resultado informado pelo agente local e continue o plano até concluir.
+	Quando o usuário pedir um projeto, não faça perguntas se o pedido já contém os dados necessários. Inicie imediatamente uma chamada `create_file` ou `run_shell_command`. Nunca simule progresso em texto e nunca encerre uma etapa de projeto apenas com explicações. Continue usando as ferramentas até criar, testar, compilar e exportar o resultado.
 Para aplicativos Android, o pedido precisa conter explicitamente o nome do aplicativo e o nome do pacote Java/Kotlin (por exemplo, com.example.helloworld). Se um deles estiver ausente, peça esses dois dados antes de criar o projeto.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
 Não invente que executou comandos: apenas o agente local pode executar comandos, e ele os executará automaticamente dentro do workspace.
@@ -155,7 +155,7 @@ def execute_tool(root: Path, name: str, args: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "tool": name, "error": message, "message": "A ferramenta falhou; corrija o erro usando o retorno."}
 
 
-def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str = SYSTEM_PROMPT) -> str:
+def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str = SYSTEM_PROMPT, require_tool: bool = False) -> str:
     key = get_key(config)
     if not key:
         raise RuntimeError("Chave Gemini não configurada. Execute: python gemini_termux_agent.py --setup")
@@ -166,6 +166,7 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
     for attempt, candidate_model in enumerate(models_to_try):
         try:
             working_contents = list(contents)
+            used_tool = False
             for _ in range(100):
                 body = {
                     "system_instruction": {"parts": [{"text": system}]},
@@ -173,6 +174,8 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
                     "tools": TOOL_DECLARATIONS,
                     "generationConfig": {"temperature": profile["temperature"], "maxOutputTokens": profile["max_output_tokens"]},
                 }
+                if require_tool and not used_tool:
+                    body["toolConfig"] = {"functionCallingConfig": {"mode": "ANY"}}
                 request = urllib.request.Request(API_URL.format(model=candidate_model), data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")
                 with urllib.request.urlopen(request, timeout=180) as response:
                     payload = json.loads(response.read().decode("utf-8"))
@@ -180,11 +183,14 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
                 response_content = candidate.get("content", {})
                 calls = [part.get("functionCall") for part in response_content.get("parts", []) if part.get("functionCall")]
                 if not calls:
+                    if require_tool and not used_tool:
+                        raise RuntimeError("O modelo respondeu em texto e não chamou create_file/run_shell_command; a etapa não foi executada.")
                     text = extract_text(payload)
                     if not text:
                         raise RuntimeError(f"A API não retornou texto: {json.dumps(payload)[:500]}")
                     break
                 working_contents.append(response_content)
+                used_tool = True
                 response_parts = []
                 for call in calls:
                     result = execute_tool(workspace_root(config), call.get("name", ""), call.get("args", {}))
@@ -526,74 +532,36 @@ def prompt_context(root: Path) -> str:
 
 def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:
     contents = [{"role": "user", "parts": [{"text": prompt_context(root) + "\n\nPedido do usuário:\n" + prompt}]}]
-    return gemini(config, contents)
+    return gemini(config, contents, require_tool=True)
 
 
 def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile: str) -> None:
-    """Executa um plano em ciclos: dependências, arquivos, testes, build e exportação."""
-    current_prompt = prompt
-    previous_answer = ""
-    round_number = 0
-    while True:
-        round_number += 1
-        try:
-            answer = ask_once(config, root, current_prompt)
-        except Exception as exc:
-            message = str(exc)
-            if is_quota_error(message):
-                print(f"\nCOTA ESGOTADA: {message}")
-                retry = input("Continuar com outro provedor ou modelo? [S/n] ").strip().lower()
-                if retry in {"", "s", "sim", "y", "yes"}:
-                    choose_model(config)
-                    print("Retomando exatamente do ponto interrompido...")
-                    continue
-                print("Execução pausada. O projeto foi preservado.")
-                break
+    """Executa o pedido pelo ciclo nativo de Tool Calling; não interpreta texto como comandos."""
+    try:
+        answer = ask_once(config, root, prompt)
+    except Exception as exc:
+        message = str(exc)
+        if is_quota_error(message):
+            print(f"\nCOTA ESGOTADA: {message}")
+            retry = input("Continuar com outro modelo Gemini? [S/n] ").strip().lower()
+            if retry in {"", "s", "sim", "y", "yes"}:
+                choose_model(config)
+                print("Retome o mesmo pedido; os arquivos já criados foram preservados.")
+                return run_task(config, root, prompt, mode, profile)
+            print("Execução pausada. O projeto foi preservado.")
+            return
+        if is_network_error(message):
             print(f"\nERRO DE REDE/API: {message}")
-            if is_network_error(message):
-                retry = input("Tentar novamente de onde parou? [S/n] ").strip().lower()
-                if retry in {"", "s", "sim", "y", "yes"}:
-                    print("Retomando a partir do ponto salvo...")
-                    continue
-                print("Execução pausada. Os arquivos e o estado foram preservados.")
-                break
-            raise
-        print(f"\nGemini (etapa {round_number})>\n{answer}")
-        commands = extract_commands(answer)
-        if not commands:
-            if round_number == 1:
-                current_prompt = "Continue automaticamente. A resposta anterior não trouxe comandos executáveis. Agora forneça os comandos completos para criar os arquivos do projeto e depois compilar. Não pare na explicação."
-                previous_answer = answer
-                continue
-            print("\nO Gemini informou que não há mais comandos nesta etapa.")
-            break
-        print("\nPlano de execução automático:")
-        for index, command in enumerate(commands, 1):
-            print(f"  {index}. {command}")
-        if not execute_commands(root, commands, mode, profile_name=profile):
-            error_file = root / ".gemini-agent-last-error.txt"
-            error = error_file.read_text(encoding="utf-8", errors="replace")[-6000:] if error_file.exists() else "erro desconhecido"
-            if is_network_error(error):
-                retry = input("Erro de rede durante a etapa. Tentar novamente de onde parou? [S/n] ").strip().lower()
-                if retry not in {"", "s", "sim", "y", "yes"}:
-                    print("Execução pausada. Os arquivos e o estado foram preservados.")
-                    break
-            current_prompt = (
-                "A etapa anterior falhou. Corrija automaticamente o problema e continue o pedido original. "
-                "Não repita a causa sem corrigir. Verifique o workspace e forneça um bloco bash completo com a correção e os próximos passos.\n\n"
-                + error
-            )
-            continue
-        copied = copy_artifacts_to_downloads(root)
-        for path in copied:
-            print(f"Arquivo enviado automaticamente para Downloads: {path}")
-        previous_answer = answer
-        current_prompt = (
-            "A etapa anterior foi executada pelo agente local. Continue o mesmo trabalho até concluir o pedido original. "
-            "Verifique os arquivos atuais do workspace, não repita comandos que já funcionaram, e forneça agora os próximos comandos completos em blocos bash. "
-            "Se o APK/ZIP ainda não existir, crie, teste, compile e copie para ~/storage/downloads/. "
-            f"Resposta anterior resumida: {previous_answer[-1500:]}"
-        )
+            retry = input("Tentar novamente do ponto preservado? [S/n] ").strip().lower()
+            if retry in {"", "s", "sim", "y", "yes"}:
+                return run_task(config, root, prompt, mode, profile)
+            print("Execução pausada. Os arquivos foram preservados.")
+            return
+        raise
+    print(f"\nGemini (execução concluída) >\n{answer}")
+    copied = copy_artifacts_to_downloads(root)
+    for path in copied:
+        print(f"Arquivo enviado automaticamente para Downloads: {path}")
 
 
 def interactive(config: dict[str, Any]) -> None:

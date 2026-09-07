@@ -95,7 +95,7 @@ Construindo arquivo: app/src/main/AndroidManifest.xml ...
 app/src/main/AndroidManifest.xml √
 ```
 
-No provedor Gemini, a criação usa Tool Calling nativo: `create_file` escreve o conteúdo no disco real do workspace e `run_shell_command` executa os comandos nele. O retorno de cada ferramenta é enviado novamente à API como `function_response`, para que o modelo veja o resultado real e corrija falhas. Se houver erro de escrita no armazenamento ou na cópia para Downloads, o Termux exibe a mensagem no terminal.
+No provedor Gemini, a criação usa Tool Calling nativo: `create_file` escreve o conteúdo no disco real do workspace e `run_shell_command` executa os comandos nele. O retorno de cada ferramenta é enviado novamente à API como `function_response`, para que o modelo veja o resultado real e corrija falhas. O agente não transforma mais blocos de markdown ou explicações em execução: uma tarefa de projeto só começa quando o Gemini chama uma dessas ferramentas. Se houver erro de escrita no armazenamento ou na cópia para Downloads, o Termux exibe a mensagem no terminal.
 
 Quando uma etapa falhar:
 

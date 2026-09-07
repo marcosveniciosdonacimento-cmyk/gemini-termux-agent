@@ -78,6 +78,14 @@ class AgentTests(unittest.TestCase):
         names = {item["name"] for item in agent.TOOL_DECLARATIONS[0]["functionDeclarations"]}
         self.assertEqual(names, {"create_file", "run_shell_command"})
 
+    def test_tool_response_reports_real_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            result = agent.execute_tool(root, "create_file", {"path": "real.txt", "content": "feito"})
+            self.assertEqual(result["tool"], "create_file")
+            self.assertTrue(result["ok"])
+            self.assertTrue((root / "real.txt").is_file())
+
     def test_setup_only_has_required_packages(self):
         setup = Path(__file__).with_name("setup.sh").read_text(encoding="utf-8")
         self.assertIn("REQUIRED_PACKAGES", setup)
