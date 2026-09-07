@@ -74,6 +74,16 @@ class AgentTests(unittest.TestCase):
         config = {"api_key": "AIza_test"}
         self.assertEqual(agent.get_key(config), "AIza_test")
 
+    def test_tool_declarations_are_real(self):
+        names = {item["name"] for item in agent.TOOL_DECLARATIONS[0]["functionDeclarations"]}
+        self.assertEqual(names, {"create_file", "run_shell_command"})
+
+    def test_setup_only_has_required_packages(self):
+        setup = Path(__file__).with_name("setup.sh").read_text(encoding="utf-8")
+        self.assertIn("REQUIRED_PACKAGES", setup)
+        self.assertNotIn("EXTRA_PACKAGES", setup)
+        self.assertIn("installed-packages.txt", setup)
+
 
 if __name__ == "__main__":
     unittest.main()

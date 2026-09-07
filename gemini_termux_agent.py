@@ -46,6 +46,7 @@ SYSTEM_PROMPT = """Você é o Gemini Termux Agent, um assistente de desenvolvime
 Você ajuda o usuário a criar e compilar projetos no workspace atual.
 Responda em português do Brasil quando o usuário escrever em português.
 	Para alterar o workspace, use obrigatoriamente as ferramentas nativas `create_file` e `run_shell_command`; não simule a criação escrevendo apenas texto. Use `create_file` para cada arquivo e `run_shell_command` para instalar, testar e compilar. Confira o retorno das ferramentas e corrija erros reais.
+	O instalador já preparou as ferramentas essenciais antes desta sessão. Não execute `pkg install`, `pkg update` ou `pkg upgrade` durante um projeto. Consulte o inventário informado pelo agente e só instale uma dependência específica se ela realmente estiver ausente e for indispensável.
 Quando o usuário pedir um projeto, não pare apenas na explicação ou na instalação: entregue os comandos completos para criar os arquivos, configurar, testar, compilar e exportar o resultado. Depois de cada etapa, aguarde o resultado informado pelo agente local e continue o plano até concluir.
 Para aplicativos Android, o pedido precisa conter explicitamente o nome do aplicativo e o nome do pacote Java/Kotlin (por exemplo, com.example.helloworld). Se um deles estiver ausente, peça esses dois dados antes de criar o projeto.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
@@ -518,7 +519,9 @@ def execute_commands(root: Path, commands: list[str], mode: str = "agora", start
 
 
 def prompt_context(root: Path) -> str:
-    return f"Workspace atual: {root}\nArquivos existentes:\n{list_files(root)}"
+    inventory = Path.home() / ".config" / "gemini-termux-agent" / "installed-packages.txt"
+    installed = inventory.read_text(encoding="utf-8", errors="replace") if inventory.exists() else "inventário ainda não criado"
+    return f"Workspace atual: {root}\nFerramentas essenciais preparadas (não reinstalar):\n{installed}\nArquivos existentes:\n{list_files(root)}"
 
 
 def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:

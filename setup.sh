@@ -5,21 +5,43 @@ cd "$(dirname "$0")"
 pkg update -y
 pkg upgrade -y
 
-BASE_PACKAGES=(python git zip unzip openjdk-17 gradle clang make cmake pkg-config findutils coreutils sed grep tar)
-EXTRA_PACKAGES=(curl wget openssl ca-certificates jq ripgrep libffi openssl-tool rust binutils sqlite chromium ffmpeg procps htop tree)
+# Apenas ferramentas essenciais para construir e empacotar aplicativos.
+REQUIRED_PACKAGES=(python git zip unzip openjdk-17 gradle clang make cmake pkg-config findutils coreutils sed grep tar)
+CONFIG_DIR="$HOME/.config/gemini-termux-agent"
+INSTALLED_FILE="$CONFIG_DIR/installed-packages.txt"
+mkdir -p "$CONFIG_DIR"
+chmod 700 "$CONFIG_DIR"
+touch "$INSTALLED_FILE"
+chmod 600 "$INSTALLED_FILE"
+
+is_installed() {
+  local package="$1"
+  dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'
+}
+
+mark_installed() {
+  local package="$1"
+  grep -qxF "$package" "$INSTALLED_FILE" 2>/dev/null || printf '%s\n' "$package" >> "$INSTALLED_FILE"
+}
 
 install_one() {
   local package="$1"
   local number="$2"
   local total="$3"
-  local required="$4"
   local attempt
 
-  printf '\n[%s/%s] Instalando pacote: %s\n' "$number" "$total" "$package"
+  if is_installed "$package"; then
+    printf '[%s/%s] %s já está instalado — pulando download.\n' "$number" "$total" "$package"
+    mark_installed "$package"
+    return 0
+  fi
+
+  printf '\n[%s/%s] Instalando pacote essencial: %s\n' "$number" "$total" "$package"
   for attempt in 1 2 3; do
     printf '  Tentativa %s/3: pkg install -y %s\n' "$attempt" "$package"
     if pkg install -y "$package"; then
-      printf '  OK: %s está pronto.\n' "$package"
+      mark_installed "$package"
+      printf '  OK: %s está pronto e registrado no inventário.\n' "$package"
       return 0
     fi
     printf '  Falha ao instalar %s. Atualizando índices antes da próxima tentativa...\n' "$package"
@@ -27,35 +49,26 @@ install_one() {
     sleep 2
   done
 
-  if [ "$required" = "1" ]; then
-    printf '\nERRO: pacote essencial não foi instalado: %s\n' "$package" >&2
-    printf 'Verifique a internet/espelho com termux-change-repo e execute bash setup.sh novamente.\n' >&2
-    exit 1
-  fi
-  printf '  AVISO: pacote opcional não disponível agora: %s. Continuando.\n' "$package"
+  printf '\nERRO: pacote essencial não foi instalado: %s\n' "$package" >&2
+  printf 'Corrija a internet/espelho e execute bash setup.sh novamente.\n' >&2
+  exit 1
 }
 
-TOTAL=$(( ${#BASE_PACKAGES[@]} + ${#EXTRA_PACKAGES[@]} ))
+TOTAL=${#REQUIRED_PACKAGES[@]}
 NUMBER=0
-printf '\nPreparando as ferramentas antes do primeiro projeto.\n'
-printf 'Cada pacote será processado separadamente e o progresso ficará visível no Termux.\n'
+printf '\nPreparando o ambiente uma única vez antes dos projetos.\n'
+printf 'Inventário persistente: %s\n' "$INSTALLED_FILE"
+printf 'Pacotes já instalados serão reconhecidos e não serão baixados novamente.\n'
 
-for package in "${BASE_PACKAGES[@]}"; do
+for package in "${REQUIRED_PACKAGES[@]}"; do
   NUMBER=$((NUMBER + 1))
-  install_one "$package" "$NUMBER" "$TOTAL" "1"
+  install_one "$package" "$NUMBER" "$TOTAL"
 done
 
-printf '\nAgora instalando ferramentas extras para web, pesquisa e mídia.\n'
-for package in "${EXTRA_PACKAGES[@]}"; do
-  NUMBER=$((NUMBER + 1))
-  install_one "$package" "$NUMBER" "$TOTAL" "0"
-done
-
-printf '\nSolicitando acesso ao armazenamento do Android...\n'
+printf '\nPreparação concluída: todas as ferramentas essenciais estão disponíveis.\n'
+printf 'Nenhuma ferramenta extra de web, pesquisa ou mídia será instalada.\n'
 termux-setup-storage || true
 chmod 700 gemini_termux_agent.py run.sh setup.sh
-mkdir -p "$HOME/.config/gemini-termux-agent"
-chmod 700 "$HOME/.config/gemini-termux-agent"
 ln -sf "$PWD/run.sh" "$PREFIX/bin/gemini"
 
 if [ ! -f "$HOME/.config/gemini-termux-agent/config.json" ]; then
@@ -64,6 +77,6 @@ else
   printf 'Chave já configurada; mantendo a configuração existente.\n'
 fi
 
-printf '\nInstalação concluída. Todos os pacotes disponíveis foram processados antes de iniciar o agente.\n'
+printf '\nInstalação concluída. O ambiente está pronto para criar projetos.\n'
 printf 'O comando global agora é: gemini\n'
 exec "$PREFIX/bin/gemini"

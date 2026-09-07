@@ -52,9 +52,9 @@ cd ~/gemini-termux-agent
 bash setup.sh
 ```
 
-O instalador atualiza os pacotes e instala cada ferramenta individualmente, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/...] Instalando pacote: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto base inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar. Depois ele processa, também individualmente, as ferramentas extras para web, pesquisa e mídia.
+O instalador atualiza os pacotes e instala somente as ferramentas essenciais, uma por vez, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/14] Instalando pacote essencial: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar.
 
-Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. Cada pacote tem até três tentativas; se um pacote base falhar, a instalação para para não iniciar o agente incompleto. Se um pacote extra não estiver disponível, ele mostra um aviso e continua. Execute `bash setup.sh` novamente depois de corrigir a internet ou o espelho; os pacotes já instalados serão reaproveitados pelo Termux.
+Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. O instalador mantém um inventário em `~/.config/gemini-termux-agent/installed-packages.txt` e também confere o estado real do dpkg. Assim, em uma atualização ou reinstalação, pacotes já instalados são reconhecidos e não são baixados novamente. Cada pacote novo tem até três tentativas; se um essencial falhar, a instalação para para não iniciar o agente incompleto.
 
 ### 6. Cadastrar a chave
 
@@ -112,9 +112,7 @@ Tentar novamente de onde parou? [S/n]
 
 Responda `S` ou pressione Enter para continuar. Responda `N` para pausar preservando os arquivos.
 
-O instalador também tenta preparar ferramentas para sites, pesquisa e mídia: `curl`, `wget`, `openssl`, `ca-certificates`, `jq`, `ripgrep`, `libffi`, `openssl-tool`, `rust`, `binutils`, `sqlite`, `chromium`, `ffmpeg`, `procps`, `htop` e `tree`. Essas ferramentas são opcionais e instaladas individualmente; se uma não estiver disponível no repositório do Termux, o instalador avisa e continua com as demais.
-
-Com essas ferramentas, o agente pode criar sites estáticos ou projetos web no workspace, executar servidores locais, pesquisar/baixar recursos quando permitido pelo prompt e preparar arquivos para publicação. A publicação em um serviço externo exige credenciais, domínio ou token próprios e uma instrução explícita; o agente não publica em contas de terceiros sem essas informações.
+O agente recebe o inventário das ferramentas já preparadas e não repete `pkg install`, `pkg update` ou `pkg upgrade` durante a criação de cada projeto. Ele usa `create_file` para escrever arquivos reais, `run_shell_command` para testar e compilar, corrige a etapa que falhar, recebe o resultado real e continua para as próximas etapas. Ao encontrar APK, AAB ou ZIP, copia o artefato para `~/storage/downloads/` e exibe qualquer erro de armazenamento no terminal.
 
 Ao encontrar APK, AAB ou ZIP, o agente copia o resultado para:
 

@@ -1,9 +1,9 @@
-PACOTES INSTALADOS PELO setup.sh
-================================
+PACOTES ESSENCIAIS INSTALADOS PELO setup.sh
+============================================
 
-O instalador executa `pkg update -y` e `pkg upgrade -y` antes desta lista.
+O instalador executa `pkg update -y` e `pkg upgrade -y` uma vez durante a preparação.
 
-Pacotes solicitados diretamente por `pkg install`:
+Pacotes essenciais processados individualmente:
 
 python
 git
@@ -21,29 +21,11 @@ sed
 grep
 tar
 
-Ferramentas extras solicitadas para web, pesquisa e mídia:
-
-curl
-wget
-openssl
-ca-certificates
-jq
-ripgrep
-libffi
-openssl-tool
-rust
-binutils
-sqlite
-chromium
-ffmpeg
-procps
-htop
-tree
-
-Observações:
-- O `setup.sh` processa cada pacote individualmente, mostra o progresso e só inicia o agente depois de terminar a fila.
-- O Termux também instala dependências adicionais exigidas por esses pacotes.
-- A lista de dependências adicionais pode variar conforme a arquitetura, a versão do Termux e os pacotes já instalados.
-- `termux-setup-storage` não é um pacote: é um comando que cria o acesso do Termux ao armazenamento compartilhado do Android.
-- O script tenta instalar os pacotes até três vezes e atualiza os índices entre as tentativas.
-- As ferramentas extras são tentadas individualmente duas vezes. Se uma não existir no repositório ou falhar, o instalador mostra um aviso e continua com as demais.
+Comportamento:
+- O setup.sh verifica se cada pacote já está instalado com dpkg.
+- Pacotes já instalados são pulados e não são baixados novamente.
+- Pacotes novos são instalados um por vez, em sequência visível.
+- O inventário persistente fica em `~/.config/gemini-termux-agent/installed-packages.txt`.
+- Se um pacote essencial falhar após três tentativas, o instalador para e informa o erro.
+- Dependências extras específicas de um projeto podem variar, mas o agente não repete a preparação geral do Termux a cada projeto.
+- `termux-setup-storage` não é um pacote: cria os atalhos de acesso ao armazenamento do Android.
