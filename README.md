@@ -35,6 +35,8 @@ cd ~/projetos/meu-app
 ~/gemini-termux-agent/run.sh
 ```
 
+Ao abrir, o agente mostra um menu numerado com as pastas de `~/projetos`. Escolha um projeto existente ou selecione **Criar novo projeto**, informe o nome e converse com o Gemini dentro dele. O último projeto selecionado fica salvo para a próxima abertura.
+
 Exemplos de pedidos:
 
 ```text
@@ -71,7 +73,7 @@ Essas proteções não substituem revisão humana: shell é poderoso e comandos 
 
 ## Modelos
 
-O padrão é `gemini-3.8-flash`, adequado para tarefas de engenharia de software segundo a documentação atual da Gemini API. Você pode trocar o modelo:
+O padrão é `gemini-3.5-flash`. Você pode trocar o modelo:
 
 ```bash
 ./run.sh --model gemini-2.5-flash

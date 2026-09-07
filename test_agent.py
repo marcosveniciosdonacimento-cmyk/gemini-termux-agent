@@ -6,6 +6,9 @@ import gemini_termux_agent as agent
 
 
 class AgentTests(unittest.TestCase):
+    def test_default_model_is_gemini_35_flash(self):
+        self.assertEqual(agent.DEFAULT_MODEL, "gemini-3.5-flash")
+
     def test_safe_path_stays_inside_workspace(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()

@@ -21,7 +21,8 @@ from typing import Any
 APP_NAME = "Gemini Termux Agent"
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "gemini-termux-agent"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-DEFAULT_MODEL = "gemini-3.8-flash"
+PROJECTS_DIR = Path.home() / "projetos"
+DEFAULT_MODEL = "gemini-3.5-flash"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MAX_OUTPUT = 12000
 
@@ -139,6 +140,52 @@ def workspace_root(config: dict[str, Any]) -> Path:
     return root
 
 
+def project_dirs() -> list[Path]:
+    PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+    return sorted((path for path in PROJECTS_DIR.iterdir() if path.is_dir() and not path.name.startswith(".")), key=lambda path: path.name.lower())
+
+
+def choose_project(config: dict[str, Any]) -> Path:
+    """Mostra um menu simples para selecionar ou criar o projeto ativo."""
+    while True:
+        projects = project_dirs()
+        print("\nMeus projetos")
+        if projects:
+            for index, project in enumerate(projects, 1):
+                marker = " (atual)" if Path(config.get("workspace", "")).resolve() == project.resolve() else ""
+                print(f"  {index}. {project.name}{marker}")
+        else:
+            print("  (nenhum projeto criado ainda)")
+        new_number = len(projects) + 1
+        print(f"  {new_number}. Criar novo projeto")
+        print("  Q. Sair")
+        answer = input("\nEscolha o número: ").strip().lower()
+        if answer in {"q", "sair", "0"}:
+            raise SystemExit(0)
+        if answer == str(new_number):
+            name = input("Nome do novo projeto: ").strip()
+            name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip(".-")
+            if not name:
+                print("Nome inválido. Use letras, números, ponto, hífen ou sublinhado.")
+                continue
+            target = (PROJECTS_DIR / name).resolve()
+            if target.exists():
+                print("Esse projeto já existe.")
+                continue
+            target.mkdir(parents=True)
+            config["workspace"] = str(target)
+            save_config(config)
+            return target
+        try:
+            selected = projects[int(answer) - 1]
+        except (ValueError, IndexError):
+            print("Escolha inválida.")
+            continue
+        config["workspace"] = str(selected.resolve())
+        save_config(config)
+        return selected
+
+
 def safe_path(root: Path, raw: str) -> Path:
     candidate = (root / raw).resolve()
     if candidate != root and root not in candidate.parents:
@@ -200,7 +247,7 @@ def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:
 
 
 def interactive(config: dict[str, Any]) -> None:
-    root = workspace_root(config)
+    root = choose_project(config)
     print(f"\n{APP_NAME}")
     print(f"Workspace: {root}")
     print("Digite um pedido. Comandos sugeridos pelo Gemini só serão executados após sua confirmação.")
@@ -256,6 +303,9 @@ def interactive(config: dict[str, Any]) -> None:
 
 def main() -> int:
     config = load_config()
+    if config.get("model") == "gemini-3.8-flash":
+        config["model"] = DEFAULT_MODEL
+        save_config(config)
     if "--setup" in sys.argv or not get_key(config):
         config = configure_key(config)
         if "--setup" in sys.argv:
