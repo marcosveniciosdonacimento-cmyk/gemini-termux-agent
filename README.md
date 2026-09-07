@@ -53,7 +53,9 @@ cd ~/projetos/meu-app
 ~/gemini-termux-agent/run.sh
 ```
 
-Ao abrir, o agente mostra um menu numerado com as pastas de `~/projetos`. Escolha um projeto existente ou selecione **Criar novo projeto**, informe o nome e converse com o Gemini dentro dele. O último projeto selecionado fica salvo para a próxima abertura.
+Ao abrir, o agente mostra um menu numerado com as pastas de `~/projetos`. Escolha um projeto existente ou selecione **Criar novo projeto**, informe o nome e converse com o Gemini dentro dele. O último projeto selecionado fica salvo para a próxima abertura. Durante a instalação, o Termux também solicitará a permissão de armazenamento.
+
+Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência, com uma pausa curta entre comandos para aliviar o aparelho. Não haverá confirmação `s/n` para cada etapa. Ao final, o agente pergunta uma única vez se deve copiar APK, AAB ou ZIP para `~/storage/downloads/`.
 
 Exemplos de pedidos:
 

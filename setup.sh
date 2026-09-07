@@ -4,6 +4,7 @@ cd "$(dirname "$0")"
 
 pkg update -y
 pkg install -y python git zip unzip
+termux-setup-storage || true
 chmod 700 gemini_termux_agent.py run.sh setup.sh
 mkdir -p "$HOME/.config/gemini-termux-agent"
 chmod 700 "$HOME/.config/gemini-termux-agent"

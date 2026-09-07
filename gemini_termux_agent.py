@@ -12,6 +12,7 @@ import re
 import shlex
 import subprocess
 import sys
+import time
 import textwrap
 import urllib.error
 import urllib.request
@@ -25,6 +26,7 @@ PROJECTS_DIR = Path.home() / "projetos"
 DEFAULT_MODEL = "gemini-3.5-flash"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MAX_OUTPUT = 12000
+COMMAND_PAUSE_SECONDS = 3
 
 SYSTEM_PROMPT = """Você é o Gemini Termux Agent, um assistente de desenvolvimento local.
 Você ajuda o usuário a criar e compilar projetos no workspace atual.
@@ -237,6 +239,45 @@ def package_project(root: Path) -> Path:
     return archive
 
 
+def copy_artifacts_to_downloads(root: Path) -> list[Path]:
+    downloads = Path.home() / "storage" / "downloads"
+    if not downloads.exists():
+        return []
+    candidates = [
+        path for path in root.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in {".apk", ".aab", ".zip"}
+        and ("build" in path.parts or path.parent.name == "artifacts")
+    ]
+    copied: list[Path] = []
+    for source in candidates:
+        target = downloads / source.name
+        target.write_bytes(source.read_bytes())
+        copied.append(target)
+    return copied
+
+
+def execute_commands(root: Path, commands: list[str]) -> bool:
+    """Executa a sequência sem confirmação individual, preservando pausas entre etapas."""
+    completed_any = False
+    for index, command in enumerate(commands, 1):
+        if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
+            print(f"Bloqueado por segurança: {command}")
+            continue
+        print(f"\n[{index}/{len(commands)}] $ {command}")
+        code, output = execute_command(root, command)
+        print(output or "(sem saída)")
+        print(f"Código de saída: {code}")
+        completed_any = True
+        if code != 0:
+            print("A etapa falhou; o agente parou para preservar o projeto.")
+            return completed_any
+        if index < len(commands):
+            print(f"Pausa de {COMMAND_PAUSE_SECONDS} segundos antes da próxima etapa...")
+            time.sleep(COMMAND_PAUSE_SECONDS)
+    return completed_any
+
+
 def prompt_context(root: Path) -> str:
     return f"Workspace atual: {root}\nArquivos existentes:\n{list_files(root)}"
 
@@ -264,6 +305,7 @@ def interactive(config: dict[str, Any]) -> None:
             return
         if prompt == "/help":
             print("Exemplos: 'crie um app Android simples'; 'corrija os testes'; 'compile o projeto'.")
+            print("O modo automático executa etapas seguras sem confirmação individual e pergunta apenas no final sobre Downloads.")
             continue
         if prompt == "/files":
             print(list_files(root) or "(vazio)")
@@ -285,18 +327,19 @@ def interactive(config: dict[str, Any]) -> None:
             print("\nGemini>\n" + answer)
             commands = extract_commands(answer)
             if commands:
-                print("\nComandos detectados para execução local:")
+                print("\nPlano de execução automático:")
                 for index, command in enumerate(commands, 1):
                     print(f"  {index}. {command}")
-                if input("Executar estes comandos? [s/N] ").strip().lower() in {"s", "sim", "y", "yes"}:
-                    for command in commands:
-                        if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
-                            print(f"Bloqueado por segurança: {command}")
-                            continue
-                        print(f"\n$ {command}")
-                        code, output = execute_command(root, command)
-                        print(output or "(sem saída)")
-                        print(f"Código de saída: {code}")
+                if execute_commands(root, commands):
+                    print("\nExecução concluída ou interrompida por erro.")
+                    if input("Enviar APK/ZIP/AAB para a pasta Downloads? [s/N] ").strip().lower() in {"s", "sim", "y", "yes"}:
+                        copied = copy_artifacts_to_downloads(root)
+                        if copied:
+                            print("Arquivos copiados:")
+                            for path in copied:
+                                print(f"  {path}")
+                        else:
+                            print("Nenhum APK, AAB ou ZIP foi encontrado. Execute `termux-setup-storage` se a pasta Downloads ainda não estiver disponível.")
         except Exception as exc:
             print(f"Erro: {exc}")
 
