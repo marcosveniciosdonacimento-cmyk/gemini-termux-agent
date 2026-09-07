@@ -497,6 +497,7 @@ def interactive(config: dict[str, Any]) -> None:
             continue
         if prompt in {"/quit", "/exit", "/sair"}:
             return
+        print("OK — pedido recebido. Processando com o Gemini...", flush=True)
         if prompt == "/help":
             print("Exemplos: 'crie um app Android simples'; 'corrija os testes'; 'compile o projeto'.")
             print("Perfis: Alto, Baixo e Rápido. Troque o modelo fora do agente com: gemini --model NOME")
