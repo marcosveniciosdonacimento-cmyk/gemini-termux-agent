@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 .env
 config.json
+.gemini-agent-state.json
+.gemini-agent-profile
 artifacts/
 *.zip
 *.apk

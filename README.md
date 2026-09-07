@@ -53,9 +53,9 @@ cd ~/projetos/meu-app
 ~/gemini-termux-agent/run.sh
 ```
 
-Ao abrir, o agente mostra um menu numerado com as pastas de `~/projetos`. Escolha um projeto existente ou selecione **Criar novo projeto**, informe o nome e converse com o Gemini dentro dele. O último projeto selecionado fica salvo para a próxima abertura. Durante a instalação, o Termux também solicitará a permissão de armazenamento.
+Ao abrir, o agente mostra somente três escolhas simples: **Agora** ou **Madrugada**; perfil de IA **Alto**, **Baixo** ou **Rápido**; e um projeto numerado em `~/projetos`. Você pode criar um projeto novo ou importar um ZIP gerado pelo AI Studio. Durante a instalação, o Termux também solicitará a permissão de armazenamento.
 
-Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência, com uma pausa curta entre comandos para aliviar o aparelho. Essas etapas podem incluir criação de arquivos, instalação de dependências do projeto, configuração, testes e compilação — não ficam limitadas aos comandos básicos do Termux. Não haverá confirmação `s/n` para cada etapa. Ao final, o agente pergunta uma única vez se deve copiar APK, AAB ou ZIP para `~/storage/downloads/`.
+Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência. Essas etapas podem incluir criação de arquivos, instalação de dependências do projeto, configuração, testes e compilação — não ficam limitadas aos comandos básicos do Termux. O modo **Agora** pausa 3 segundos entre comandos. O modo **Madrugada** pausa 30 minutos entre comandos para reduzir chamadas à API; isso é um temporizador local e não garante, por si só, uma cota específica do Google. O próximo índice é salvo em `.gemini-agent-state.json`, então se o Termux for interrompido, a próxima abertura retoma a partir da etapa seguinte. Ao finalizar, APK, AAB e ZIP encontrados são enviados automaticamente para `~/storage/downloads/`.
 
 Exemplos de pedidos:
 
@@ -76,7 +76,17 @@ Comandos locais disponíveis dentro do agente:
 | `/package` | Cria um ZIP em `artifacts/` |
 | `/quit` | Sai do agente |
 
-O agente não envia automaticamente arquivos para a internet. Para abrir um APK ou ZIP no armazenamento compartilhado do Android, depois da compilação você pode usar:
+A opção **Importar ZIP do AI Studio** aceita um arquivo `.zip`, valida os caminhos internos contra traversal e extrai o projeto em uma nova pasta dentro de `~/projetos`.
+
+O modelo padrão é `gemini-3.5-flash`. Para trocar o modelo, use:
+
+```bash
+gemini --model gemini-2.5-flash
+```
+
+Na instalação são preparados o Python, Git, Zip, Unzip, atualização dos pacotes do Termux e acesso ao armazenamento. Dependências específicas — por exemplo, ferramentas de um projeto Android, Node ou Python — só podem ser conhecidas depois que você informa o tipo de aplicação; nesse momento o agente as instala automaticamente dentro do projeto.
+
+O agente não envia arquivos para a internet. Ele apenas copia artefatos para a pasta local de Downloads do Android:
 
 ```bash
 termux-setup-storage
@@ -87,7 +97,7 @@ Para criar um link de download, use um serviço de hospedagem ou GitHub Releases
 
 ## Segurança e limites
 
-O Gemini recebe o contexto textual do workspace e responde pela API. Ele não recebe a sua chave no prompt. Comandos encontrados em blocos Bash são apenas sugestões e sempre exigem confirmação. O agente remove a chave do ambiente antes de executar comandos, bloqueia alguns padrões destrutivos óbvios, limita a execução ao workspace configurado e redige possíveis segredos da saída.
+O Gemini recebe o contexto textual do workspace e responde pela API. Ele não recebe a sua chave no prompt. O modo automático executa comandos dentro do workspace sem confirmação individual, mas bloqueia alguns padrões destrutivos óbvios, remove a chave do ambiente, limita o trabalho ao workspace configurado e redige possíveis segredos da saída. Revise o prompt e use o modo Madrugada apenas em projetos confiáveis.
 
 Essas proteções não substituem revisão humana: shell é poderoso e comandos sugeridos por um modelo devem ser lidos antes da confirmação. Não execute projetos desconhecidos com permissões elevadas e não use `sudo`/root para tarefas comuns.
 

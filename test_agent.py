@@ -27,6 +27,14 @@ class AgentTests(unittest.TestCase):
 
     def test_command_pause_is_positive(self):
         self.assertGreater(agent.COMMAND_PAUSE_SECONDS, 0)
+        self.assertEqual(agent.NIGHT_PAUSE_SECONDS, 1800)
+
+    def test_ai_profiles_are_complete(self):
+        self.assertEqual(set(agent.AI_PROFILES), {"alto", "baixo", "rapido"})
+        for profile in agent.AI_PROFILES.values():
+            self.assertIn("temperature", profile)
+            self.assertIn("max_output_tokens", profile)
+            self.assertIn("pause", profile)
 
 
 if __name__ == "__main__":

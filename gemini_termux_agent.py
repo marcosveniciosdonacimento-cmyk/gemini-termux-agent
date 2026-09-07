@@ -16,6 +16,7 @@ import time
 import textwrap
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -27,13 +28,19 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 MAX_OUTPUT = 12000
 COMMAND_PAUSE_SECONDS = 3
+NIGHT_PAUSE_SECONDS = 30 * 60
+AI_PROFILES = {
+    "alto": {"temperature": 0.2, "max_output_tokens": 8192, "pause": 3},
+    "baixo": {"temperature": 0.4, "max_output_tokens": 4096, "pause": 1},
+    "rapido": {"temperature": 0.7, "max_output_tokens": 2048, "pause": 0},
+}
 
 SYSTEM_PROMPT = """Você é o Gemini Termux Agent, um assistente de desenvolvimento local.
 Você ajuda o usuário a criar e compilar projetos no workspace atual.
 Responda em português do Brasil quando o usuário escrever em português.
 Se precisar executar algo, proponha comandos explícitos em um bloco ```bash``` e explique o objetivo.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
-Não invente que executou comandos: apenas o agente local pode executar comandos depois da confirmação do usuário.
+Não invente que executou comandos: apenas o agente local pode executar comandos, e ele os executará automaticamente dentro do workspace.
 Prefira comandos reproduzíveis, sem apagar dados e sem ações destrutivas.
 """
 
@@ -108,10 +115,11 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
     if not key:
         raise RuntimeError("Chave Gemini não configurada. Execute: python gemini_termux_agent.py --setup")
     model = config.get("model", DEFAULT_MODEL)
+    profile = AI_PROFILES.get(config.get("ai_profile", "alto"), AI_PROFILES["alto"])
     body = {
         "system_instruction": {"parts": [{"text": system}]},
         "contents": contents,
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192},
+        "generationConfig": {"temperature": profile["temperature"], "maxOutputTokens": profile["max_output_tokens"]},
     }
     request = urllib.request.Request(
         API_URL.format(model=model),
@@ -147,6 +155,70 @@ def project_dirs() -> list[Path]:
     return sorted((path for path in PROJECTS_DIR.iterdir() if path.is_dir() and not path.name.startswith(".")), key=lambda path: path.name.lower())
 
 
+def choose_mode(config: dict[str, Any]) -> str:
+    print("\nModo de execução")
+    print("  1. Agora — pausa curta entre etapas")
+    print("  2. Madrugada — pausa de 30 minutos entre etapas")
+    print("  Q. Sair")
+    while True:
+        answer = input("\nEscolha o modo: ").strip().lower()
+        if answer == "1":
+            config["mode"] = "agora"
+            save_config(config)
+            return "agora"
+        if answer == "2":
+            config["mode"] = "madrugada"
+            save_config(config)
+            return "madrugada"
+        if answer in {"q", "sair", "0"}:
+            raise SystemExit(0)
+        print("Escolha 1, 2 ou Q.")
+
+
+def choose_ai_profile(config: dict[str, Any]) -> str:
+    current = config.get("ai_profile", "alto")
+    print("\nPerfil de IA")
+    print("  1. Alto — mais completo")
+    print("  2. Baixo — menos saída")
+    print("  3. Rápido — menor latência")
+    answer = input(f"Escolha o perfil [atual: {current}]: ").strip().lower()
+    selected = {"1": "alto", "2": "baixo", "3": "rapido"}.get(answer, current)
+    if selected not in AI_PROFILES:
+        selected = "alto"
+    config["ai_profile"] = selected
+    save_config(config)
+    return selected
+
+
+def import_zip_project() -> Path | None:
+    source = Path(input("Caminho do ZIP do AI Studio: ").strip()).expanduser().resolve()
+    if not source.is_file() or source.suffix.lower() != ".zip":
+        print("ZIP não encontrado.")
+        return None
+    default_name = re.sub(r"[^A-Za-z0-9._-]+", "-", source.stem).strip(".-") or "projeto-importado"
+    name = input(f"Nome do novo projeto [{default_name}]: ").strip() or default_name
+    name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip(".-")
+    target = (PROJECTS_DIR / name).resolve()
+    if not name or target.exists():
+        print("Nome inválido ou projeto já existente.")
+        return None
+    target.mkdir(parents=True)
+    try:
+        with zipfile.ZipFile(source) as archive:
+            for member in archive.infolist():
+                destination = (target / member.filename).resolve()
+                if destination != target and target not in destination.parents:
+                    raise ValueError("ZIP contém caminho inseguro.")
+            archive.extractall(target)
+    except Exception as exc:
+        import shutil
+        shutil.rmtree(target, ignore_errors=True)
+        print(f"Falha ao importar ZIP: {exc}")
+        return None
+    print(f"Projeto importado em: {target}")
+    return target
+
+
 def choose_project(config: dict[str, Any]) -> Path:
     """Mostra um menu simples para selecionar ou criar o projeto ativo."""
     while True:
@@ -159,7 +231,9 @@ def choose_project(config: dict[str, Any]) -> Path:
         else:
             print("  (nenhum projeto criado ainda)")
         new_number = len(projects) + 1
+        import_number = new_number + 1
         print(f"  {new_number}. Criar novo projeto")
+        print(f"  {import_number}. Importar ZIP do AI Studio")
         print("  Q. Sair")
         answer = input("\nEscolha o número: ").strip().lower()
         if answer in {"q", "sair", "0"}:
@@ -178,6 +252,13 @@ def choose_project(config: dict[str, Any]) -> Path:
             config["workspace"] = str(target)
             save_config(config)
             return target
+        if answer == str(import_number):
+            imported = import_zip_project()
+            if imported:
+                config["workspace"] = str(imported)
+                save_config(config)
+                return imported
+            continue
         try:
             selected = projects[int(answer) - 1]
         except (ValueError, IndexError):
@@ -257,10 +338,14 @@ def copy_artifacts_to_downloads(root: Path) -> list[Path]:
     return copied
 
 
-def execute_commands(root: Path, commands: list[str]) -> bool:
-    """Executa a sequência sem confirmação individual, preservando pausas entre etapas."""
+def execute_commands(root: Path, commands: list[str], mode: str = "agora", start_index: int = 0, profile_name: str = "alto") -> bool:
+    """Executa a sequência e salva o próximo índice para retomada após interrupção."""
     completed_any = False
-    for index, command in enumerate(commands, 1):
+    state_file = root / ".gemini-agent-state.json"
+    profile = AI_PROFILES.get(profile_name, AI_PROFILES["alto"])
+    pause_seconds = NIGHT_PAUSE_SECONDS if mode == "madrugada" else profile["pause"]
+    for index, command in enumerate(commands[start_index:], start_index + 1):
+        state_file.write_text(json.dumps({"mode": mode, "commands": commands, "next_index": index - 1}, ensure_ascii=False, indent=2), encoding="utf-8")
         if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
             print(f"Bloqueado por segurança: {command}")
             continue
@@ -272,9 +357,14 @@ def execute_commands(root: Path, commands: list[str]) -> bool:
         if code != 0:
             print("A etapa falhou; o agente parou para preservar o projeto.")
             return completed_any
+        state_file.write_text(json.dumps({"mode": mode, "commands": commands, "next_index": index}, ensure_ascii=False, indent=2), encoding="utf-8")
         if index < len(commands):
-            print(f"Pausa de {COMMAND_PAUSE_SECONDS} segundos antes da próxima etapa...")
-            time.sleep(COMMAND_PAUSE_SECONDS)
+            if pause_seconds >= 60:
+                print(f"Pausa de {pause_seconds // 60} minutos. Retomada automática na etapa {index + 1}.")
+            else:
+                print(f"Pausa de {pause_seconds} segundos antes da próxima etapa...")
+            time.sleep(pause_seconds)
+    state_file.unlink(missing_ok=True)
     return completed_any
 
 
@@ -288,11 +378,25 @@ def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:
 
 
 def interactive(config: dict[str, Any]) -> None:
+    mode = choose_mode(config)
+    profile = choose_ai_profile(config)
     root = choose_project(config)
     print(f"\n{APP_NAME}")
     print(f"Workspace: {root}")
-    print("Digite um pedido. Comandos sugeridos pelo Gemini só serão executados após sua confirmação.")
+    print(f"Modo: {'Madrugada (30 min entre etapas)' if mode == 'madrugada' else 'Agora'} | Perfil: {profile}")
+    print("Digite um pedido. O plano será executado automaticamente, com proteção contra comandos destrutivos.")
     print("Comandos: /help, /workspace CAMINHO, /files, /package, /quit")
+    state_file = root / ".gemini-agent-state.json"
+    if state_file.exists():
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            print(f"Execução pausada encontrada na etapa {int(state.get('next_index', 0)) + 1}.")
+            execute_commands(root, state["commands"], state.get("mode", mode), int(state.get("next_index", 0)), profile)
+            copied = copy_artifacts_to_downloads(root)
+            for path in copied:
+                print(f"Arquivo enviado automaticamente para Downloads: {path}")
+        except Exception as exc:
+            print(f"Não foi possível retomar o estado salvo: {exc}")
     while True:
         try:
             prompt = input("\nVocê> ").strip()
@@ -305,7 +409,8 @@ def interactive(config: dict[str, Any]) -> None:
             return
         if prompt == "/help":
             print("Exemplos: 'crie um app Android simples'; 'corrija os testes'; 'compile o projeto'.")
-            print("O modo automático executa etapas seguras sem confirmação individual e pergunta apenas no final sobre Downloads.")
+            print("Perfis: Alto, Baixo e Rápido. Troque o modelo fora do agente com: gemini --model NOME")
+            print("O modo automático executa etapas seguras sem confirmação individual e envia artefatos para Downloads ao terminar.")
             continue
         if prompt == "/files":
             print(list_files(root) or "(vazio)")
@@ -330,16 +435,15 @@ def interactive(config: dict[str, Any]) -> None:
                 print("\nPlano de execução automático:")
                 for index, command in enumerate(commands, 1):
                     print(f"  {index}. {command}")
-                if execute_commands(root, commands):
+                if execute_commands(root, commands, mode, profile_name=profile):
                     print("\nExecução concluída ou interrompida por erro.")
-                    if input("Enviar APK/ZIP/AAB para a pasta Downloads? [s/N] ").strip().lower() in {"s", "sim", "y", "yes"}:
-                        copied = copy_artifacts_to_downloads(root)
-                        if copied:
-                            print("Arquivos copiados:")
-                            for path in copied:
-                                print(f"  {path}")
-                        else:
-                            print("Nenhum APK, AAB ou ZIP foi encontrado. Execute `termux-setup-storage` se a pasta Downloads ainda não estiver disponível.")
+                    copied = copy_artifacts_to_downloads(root)
+                    if copied:
+                        print("Arquivos enviados automaticamente para Downloads:")
+                        for path in copied:
+                            print(f"  {path}")
+                    else:
+                        print("Nenhum APK, AAB ou ZIP foi encontrado para enviar.")
         except Exception as exc:
             print(f"Erro: {exc}")
 
