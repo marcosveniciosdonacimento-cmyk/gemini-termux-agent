@@ -349,6 +349,15 @@ def execute_command(root: Path, command: str) -> tuple[int, str]:
         return 127, redact(f"Falha ao iniciar comando: {exc}")
 
 
+def command_label(command: str) -> str:
+    """Cria uma descrição curta e legível para o painel de progresso."""
+    lines = [line.strip() for line in command.splitlines() if line.strip() and not line.strip().startswith("#")]
+    first = lines[0] if lines else "etapa"
+    first = re.sub(r"^cat\s+.*?\s+<<[-\w]+\s*$", "criando arquivo", first)
+    first = re.sub(r"\s+2?>&?1$", "", first)
+    return first[:100]
+
+
 def extract_commands(answer: str) -> list[str]:
     blocks = re.findall(r"```(?:bash|sh|shell)?\s*\n(.*?)```", answer, flags=re.S | re.I)
     commands: list[str] = []
@@ -386,7 +395,7 @@ def copy_artifacts_to_downloads(root: Path) -> list[Path]:
 
 
 def execute_commands(root: Path, commands: list[str], mode: str = "agora", start_index: int = 0, profile_name: str = "alto") -> bool:
-    """Executa a sequência e salva o próximo índice para retomada após interrupção."""
+    """Executa a sequência continuamente e salva o próximo índice para retomada."""
     completed_any = False
     state_file = root / ".gemini-agent-state.json"
     profile = AI_PROFILES.get(profile_name, AI_PROFILES["alto"])
@@ -396,22 +405,21 @@ def execute_commands(root: Path, commands: list[str], mode: str = "agora", start
         if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
             print(f"Bloqueado por segurança: {command}")
             continue
-        print(f"\n[{index}/{len(commands)}] $ {command}")
+        label = command_label(command)
+        print(f"\nConstruindo: {label} ...", flush=True)
         code, output = execute_command(root, command)
-        print(output or "(sem saída)")
-        print(f"Código de saída: {code}")
         if code != 0:
+            print("X", flush=True)
+            print(output or "(sem saída)")
+            print(f"Código de saída: {code}")
             (root / ".gemini-agent-last-error.txt").write_text(f"Comando:\n{command}\n\nSaída:\n{output}\n", encoding="utf-8")
             print("A etapa falhou; o próximo ciclo tentará corrigir automaticamente.")
             return False
+        print("√", flush=True)
+        if output:
+            print(output)
         completed_any = True
         state_file.write_text(json.dumps({"mode": mode, "commands": commands, "next_index": index}, ensure_ascii=False, indent=2), encoding="utf-8")
-        if index < len(commands):
-            if pause_seconds >= 60:
-                print(f"Pausa de {pause_seconds // 60} minutos. Retomada automática na etapa {index + 1}.")
-            else:
-                print(f"Pausa de {pause_seconds} segundos antes da próxima etapa...")
-            time.sleep(pause_seconds)
     state_file.unlink(missing_ok=True)
     return completed_any
 
@@ -429,7 +437,9 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
     """Executa um plano em ciclos: dependências, arquivos, testes, build e exportação."""
     current_prompt = prompt
     previous_answer = ""
-    for round_number in range(1, 9):
+    round_number = 0
+    while True:
+        round_number += 1
         answer = ask_once(config, root, current_prompt)
         print(f"\nGemini (etapa {round_number})>\n{answer}")
         commands = extract_commands(answer)
@@ -462,12 +472,10 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
             "Se o APK/ZIP ainda não existir, crie, teste, compile e copie para ~/storage/downloads/. "
             f"Resposta anterior resumida: {previous_answer[-1500:]}"
         )
-    else:
-        print("Limite de 8 etapas atingido; o workspace foi preservado para continuar depois.")
 
 
 def interactive(config: dict[str, Any]) -> None:
-    mode = choose_mode(config)
+    mode = "agora"
     profile = choose_ai_profile(config)
     model = choose_model(config)
     root = choose_project(config)
