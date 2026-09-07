@@ -34,6 +34,13 @@ AI_PROFILES = {
     "baixo": {"temperature": 0.4, "max_output_tokens": 4096, "pause": 1},
     "rapido": {"temperature": 0.7, "max_output_tokens": 2048, "pause": 0},
 }
+MODEL_OPTIONS = [
+    ("gemini-3.5-flash", "padrão, equilibrado"),
+    ("gemini-3.7-flash", "código e tarefas longas"),
+    ("gemini-2.5-flash", "rápido e econômico"),
+    ("gemini-2.5-flash-lite", "mais leve"),
+    ("gemini-2.5-pro", "mais avançado; pode ter cota menor"),
+]
 
 SYSTEM_PROMPT = """Você é o Gemini Termux Agent, um assistente de desenvolvimento local.
 Você ajuda o usuário a criar e compilar projetos no workspace atual.
@@ -198,6 +205,29 @@ def choose_ai_profile(config: dict[str, Any]) -> str:
         selected = "alto"
     config["ai_profile"] = selected
     save_config(config)
+    return selected
+
+
+def choose_model(config: dict[str, Any]) -> str:
+    current = config.get("model", DEFAULT_MODEL)
+    print("\nModelo Gemini")
+    print("A disponibilidade gratuita depende da cota da sua conta Google AI Studio.")
+    for index, (model, description) in enumerate(MODEL_OPTIONS, 1):
+        marker = " (atual)" if model == current else ""
+        print(f"  {index}. {model} — {description}{marker}")
+    print("  0. Digitar outro nome de modelo")
+    answer = input(f"Escolha o modelo [atual: {current}]: ").strip()
+    if answer == "0":
+        selected = input("Nome exato do modelo: ").strip()
+    elif answer.isdigit() and 1 <= int(answer) <= len(MODEL_OPTIONS):
+        selected = MODEL_OPTIONS[int(answer) - 1][0]
+    else:
+        selected = current
+    if not selected:
+        selected = DEFAULT_MODEL
+    config["model"] = selected
+    save_config(config)
+    print(f"Modelo selecionado: {selected}")
     return selected
 
 
@@ -432,10 +462,11 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
 def interactive(config: dict[str, Any]) -> None:
     mode = choose_mode(config)
     profile = choose_ai_profile(config)
+    model = choose_model(config)
     root = choose_project(config)
     print(f"\n{APP_NAME}")
     print(f"Workspace: {root}")
-    print(f"Modo: {'Madrugada (30 min entre etapas)' if mode == 'madrugada' else 'Agora'} | Perfil: {profile}")
+    print(f"Modo: {'Madrugada (30 min entre etapas)' if mode == 'madrugada' else 'Agora'} | Perfil: {profile} | Modelo: {model}")
     print("Digite um pedido. O plano será executado automaticamente, com proteção contra comandos destrutivos.")
     print("Comandos: /help, /workspace CAMINHO, /files, /package, /quit")
     state_file = root / ".gemini-agent-state.json"

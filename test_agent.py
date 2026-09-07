@@ -36,6 +36,9 @@ class AgentTests(unittest.TestCase):
             self.assertIn("max_output_tokens", profile)
             self.assertIn("pause", profile)
 
+    def test_model_options_include_default(self):
+        self.assertTrue(any(model == agent.DEFAULT_MODEL for model, _ in agent.MODEL_OPTIONS))
+
 
 if __name__ == "__main__":
     unittest.main()
