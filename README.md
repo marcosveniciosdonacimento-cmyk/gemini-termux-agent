@@ -97,6 +97,8 @@ app/src/main/AndroidManifest.xml √
 
 No provedor Gemini, a criação usa Tool Calling nativo: `create_file` escreve o conteúdo no disco real do workspace e `run_shell_command` executa os comandos nele. O retorno de cada ferramenta é enviado novamente à API como `function_response`, para que o modelo veja o resultado real e corrija falhas. O agente não transforma mais blocos de markdown ou explicações em execução: uma tarefa de projeto só começa quando o Gemini chama uma dessas ferramentas. Se houver erro de escrita no armazenamento ou na cópia para Downloads, o Termux exibe a mensagem no terminal.
 
+Para pedidos de compilação ou exportação, o agente não aceita uma resposta textual como conclusão. Ele verifica a existência de um APK, AAB ou ZIP real, copia o artefato para `~/storage/downloads/`, confirma a presença do arquivo nessa pasta e, se ainda não existir, reenvia automaticamente o objetivo original ao Gemini para continuar a construção. São feitas até seis verificações automáticas; se a API ou uma dependência estiver indisponível, o terminal informa a causa em vez de declarar sucesso falso.
+
 Quando uma etapa falhar:
 
 ```text

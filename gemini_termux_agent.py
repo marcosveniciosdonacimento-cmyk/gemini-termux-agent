@@ -483,6 +483,30 @@ def copy_artifacts_to_downloads(root: Path) -> list[Path]:
     return copied
 
 
+def project_artifacts(root: Path) -> list[Path]:
+    """Retorna artefatos reais produzidos pelo projeto, ignorando caches e arquivos vazios."""
+    return sorted(
+        path for path in root.rglob("*")
+        if path.is_file()
+        and path.stat().st_size > 0
+        and path.suffix.lower() in {".apk", ".aab", ".zip"}
+        and ("build" in path.parts or path.parent.name == "artifacts")
+    )
+
+
+def task_requests_artifact(prompt: str) -> bool:
+    lowered = prompt.lower()
+    return any(word in lowered for word in ("apk", "aab", "zip", "compil", "build", "compile"))
+
+
+def downloads_artifacts(root: Path) -> list[Path]:
+    downloads = Path.home() / "storage" / "downloads"
+    if not downloads.exists():
+        return []
+    names = {path.name for path in project_artifacts(root)}
+    return sorted(path for path in downloads.iterdir() if path.is_file() and path.name in names)
+
+
 def execute_commands(root: Path, commands: list[str], mode: str = "agora", start_index: int = 0, profile_name: str = "alto") -> bool:
     """Executa a sequência continuamente e salva o próximo índice para retomada."""
     completed_any = False
@@ -536,32 +560,54 @@ def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:
 
 
 def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile: str) -> None:
-    """Executa o pedido pelo ciclo nativo de Tool Calling; não interpreta texto como comandos."""
-    try:
-        answer = ask_once(config, root, prompt)
-    except Exception as exc:
-        message = str(exc)
-        if is_quota_error(message):
-            print(f"\nCOTA ESGOTADA: {message}")
-            retry = input("Continuar com outro modelo Gemini? [S/n] ").strip().lower()
-            if retry in {"", "s", "sim", "y", "yes"}:
-                choose_model(config)
-                print("Retome o mesmo pedido; os arquivos já criados foram preservados.")
-                return run_task(config, root, prompt, mode, profile)
-            print("Execução pausada. O projeto foi preservado.")
+    """Executa o objetivo por Tool Calling e só termina após validar o resultado real."""
+    original_prompt = prompt
+    wants_artifact = task_requests_artifact(prompt)
+    continuation = prompt
+    for cycle in range(1, 7):
+        try:
+            answer = ask_once(config, root, continuation)
+        except Exception as exc:
+            message = str(exc)
+            if is_quota_error(message):
+                print(f"\nCOTA ESGOTADA: {message}")
+                retry = input("Continuar com outro modelo Gemini? [S/n] ").strip().lower()
+                if retry in {"", "s", "sim", "y", "yes"}:
+                    choose_model(config)
+                    continuation = f"Retome este objetivo original do estado atual, sem repetir o que já funcionou:\n{original_prompt}"
+                    continue
+                print("Execução pausada. O projeto foi preservado.")
+                return
+            if is_network_error(message):
+                print(f"\nERRO DE REDE/API: {message}")
+                retry = input("Tentar novamente do ponto preservado? [S/n] ").strip().lower()
+                if retry in {"", "s", "sim", "y", "yes"}:
+                    continue
+                print("Execução pausada. Os arquivos foram preservados.")
+                return
+            raise
+        print(f"\nGemini (ciclo objetivo {cycle}) >\n{answer}")
+        artifacts = project_artifacts(root)
+        if not wants_artifact or artifacts:
+            copied = copy_artifacts_to_downloads(root)
+            for path in copied:
+                print(f"Arquivo enviado automaticamente para Downloads: {path}")
+            if wants_artifact:
+                delivered = downloads_artifacts(root)
+                if delivered:
+                    print("Entrega confirmada em Downloads:")
+                    for path in delivered:
+                        print(f"  {path}")
+                else:
+                    print("AVISO: o artefato existe no projeto, mas ainda não foi confirmado em Downloads.")
             return
-        if is_network_error(message):
-            print(f"\nERRO DE REDE/API: {message}")
-            retry = input("Tentar novamente do ponto preservado? [S/n] ").strip().lower()
-            if retry in {"", "s", "sim", "y", "yes"}:
-                return run_task(config, root, prompt, mode, profile)
-            print("Execução pausada. Os arquivos foram preservados.")
-            return
-        raise
-    print(f"\nGemini (execução concluída) >\n{answer}")
-    copied = copy_artifacts_to_downloads(root)
-    for path in copied:
-        print(f"Arquivo enviado automaticamente para Downloads: {path}")
+        continuation = (
+            "O objetivo original ainda não foi concluído: nenhum APK, AAB ou ZIP real foi encontrado. "
+            "Continue imediatamente usando create_file ou run_shell_command; não faça perguntas e não responda apenas em texto. "
+            "Verifique o workspace, corrija erros, compile e copie o artefato para ~/storage/downloads/.\n\n"
+            f"Objetivo original:\n{original_prompt}\n\nResposta anterior:\n{answer[-2000:]}"
+        )
+    print("AVISO: o agente atingiu o limite de ciclos de verificação sem confirmar o artefato final.")
 
 
 def interactive(config: dict[str, Any]) -> None:

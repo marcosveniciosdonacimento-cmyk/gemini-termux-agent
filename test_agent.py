@@ -86,6 +86,20 @@ class AgentTests(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertTrue((root / "real.txt").is_file())
 
+    def test_artifact_request_detection(self):
+        self.assertTrue(agent.task_requests_artifact("compile o APK debug"))
+        self.assertTrue(agent.task_requests_artifact("crie um ZIP do projeto"))
+        self.assertFalse(agent.task_requests_artifact("explique como funciona o Kotlin"))
+
+    def test_project_artifacts_only_returns_real_build_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            apk = root / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+            apk.parent.mkdir(parents=True)
+            apk.write_bytes(b"apk")
+            (root / "app" / "build" / "outputs" / "apk" / "debug" / "empty.apk").touch()
+            self.assertEqual(agent.project_artifacts(root), [apk])
+
     def test_setup_only_has_required_packages(self):
         setup = Path(__file__).with_name("setup.sh").read_text(encoding="utf-8")
         self.assertIn("REQUIRED_PACKAGES", setup)
