@@ -26,16 +26,6 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 PROJECTS_DIR = Path.home() / "projetos"
 DEFAULT_MODEL = "gemini-3.5-flash"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-PROVIDERS = {
-    "gemini": {"label": "Gemini", "key_url": "https://aistudio.google.com/apikey"},
-    "groq": {"label": "Groq", "key_url": "https://console.groq.com/keys"},
-    "openrouter": {"label": "OpenRouter", "key_url": "https://openrouter.ai/keys"},
-}
-PROVIDER_MODELS = {
-    "gemini": [("gemini-3.5-flash", "padrão"), ("gemini-2.5-flash", "rápido"), ("gemini-2.5-pro", "avançado")],
-    "groq": [("llama-3.3-70b-versatile", "geral e código"), ("llama-3.1-8b-instant", "rápido")],
-    "openrouter": [("openrouter/free", "roteamento gratuito"), ("meta-llama/llama-3.3-8b-instruct:free", "gratuito"), ("google/gemini-2.0-flash-exp:free", "gratuito")],
-}
 MAX_OUTPUT = 12000
 COMMAND_PAUSE_SECONDS = 3
 NIGHT_PAUSE_SECONDS = 30 * 60
@@ -101,86 +91,29 @@ def save_config(data: dict[str, Any]) -> None:
 
 
 def get_key(config: dict[str, Any]) -> str | None:
-    provider = config.get("provider", "gemini")
-    env_name = {"gemini": "GEMINI_API_KEY", "groq": "GROQ_API_KEY", "openrouter": "OPENROUTER_API_KEY"}.get(provider, "")
-    return (os.environ.get(env_name) if env_name else None) or config.get("providers", {}).get(provider, {}).get("api_key") or (config.get("api_key") if provider == "gemini" else None)
+    return os.environ.get("GEMINI_API_KEY") or config.get("api_key")
 
 
 def configure_key(config: dict[str, Any]) -> dict[str, Any]:
-    print("\nCadastro de provedores de IA")
-    providers = config.setdefault("providers", {})
-    if config.get("api_key") and "gemini" not in providers:
-        providers["gemini"] = {"api_key": config["api_key"]}
-    while True:
-        print("\nProvedores cadastrados:")
-        for index, provider in enumerate(PROVIDERS, 1):
-            status = " (cadastrado)" if providers.get(provider, {}).get("api_key") else ""
-            print(f"  {index}. {PROVIDERS[provider]['label']}{status}")
-        print("  0. Finalizar cadastro")
-        answer = input("Escolha o provedor para cadastrar: ").strip()
-        if answer == "0":
-            break
-        if not answer.isdigit() or not 1 <= int(answer) <= len(PROVIDERS):
-            print("Escolha inválida.")
-            continue
-        provider = list(PROVIDERS)[int(answer) - 1]
-        print(f"Crie/gerencie sua chave em: {PROVIDERS[provider]['key_url']}")
-        key = getpass.getpass(f"Cole sua chave {PROVIDERS[provider]['label']}: ").strip()
-        if not key:
-            print("Nenhuma chave informada.")
-            continue
-        config["provider"] = provider
-        config["model"] = PROVIDER_MODELS[provider][0][0]
-        providers[provider] = {"api_key": key}
-        save_config(config)
-        try:
-            chat_request(config, [{"role": "user", "content": "Responda apenas: OK"}])
-            print(f"Chave {PROVIDERS[provider]['label']} validada e salva.")
-        except Exception as exc:
-            providers.pop(provider, None)
-            save_config(config)
-            print(f"Não foi possível validar esta chave: {exc}")
-            continue
-        more = input("Cadastrar outra chave? [s/N] ").strip().lower()
-        if more not in {"s", "sim", "y", "yes"}:
-            break
-    if not providers:
-        raise SystemExit("Cadastre pelo menos uma chave de IA.")
-    config["provider"] = config.get("provider") or next(iter(providers))
-    config.setdefault("model", PROVIDER_MODELS[config["provider"]][0][0])
+    print("\nA chave Gemini não será exibida na tela e ficará salva somente em:")
+    print(f"  {CONFIG_FILE}")
+    print("Crie/gerencie sua chave em: https://aistudio.google.com/apikey")
+    key = getpass.getpass("Cole sua chave Gemini: ").strip()
+    if not key:
+        raise SystemExit("Nenhuma chave informada.")
+    config["api_key"] = key
+    config["model"] = config.get("model", DEFAULT_MODEL)
     save_config(config)
+    try:
+        gemini(config, [{"role": "user", "parts": [{"text": "Responda apenas: OK"}]}])
+    except Exception:
+        config.pop("api_key", None)
+        save_config(config)
+        raise
+    print("Chave Gemini validada e salva com permissões restritas.")
     return config
 
 
-def chat_request(config: dict[str, Any], messages: list[dict[str, str]]) -> str:
-    provider = config.get("provider", "gemini")
-    key = get_key(config)
-    if not key:
-        raise RuntimeError(f"Chave do provedor {provider} não configurada.")
-    model = config.get("model", PROVIDER_MODELS.get(provider, PROVIDER_MODELS["gemini"])[0][0])
-    if provider == "gemini":
-        contents = []
-        for message in messages:
-            contents.append({"role": "user", "parts": [{"text": message["content"]}]})
-        return gemini(config, contents)
-    base_url = "https://api.groq.com/openai/v1/chat/completions" if provider == "groq" else "https://openrouter.ai/api/v1/chat/completions"
-    body = {"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 8192}
-    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
-    if provider == "openrouter":
-        headers.update({"HTTP-Referer": "https://github.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent", "X-Title": "Gemini Termux Agent"})
-    request = urllib.request.Request(base_url, data=json.dumps(body).encode(), headers=headers, method="POST")
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            payload = json.loads(response.read().decode())
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"{provider} API HTTP {exc.code}: {detail[:500]}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Falha de rede no provedor {provider}: {exc.reason}") from exc
-    try:
-        return payload["choices"][0]["message"]["content"].strip()
-    except (KeyError, IndexError, TypeError) as exc:
-        raise RuntimeError(f"Resposta inválida do provedor {provider}: {json.dumps(payload)[:500]}") from exc
 def extract_text(payload: dict[str, Any]) -> str:
     pieces: list[str] = []
     for candidate in payload.get("candidates", []):
@@ -322,37 +255,11 @@ def choose_ai_profile(config: dict[str, Any]) -> str:
     return selected
 
 
-def choose_provider(config: dict[str, Any]) -> str:
-    available = config.get("providers", {})
-    current = config.get("provider", next(iter(available), "gemini"))
-    print("\nProvedor de IA")
-    for index, provider in enumerate(PROVIDERS, 1):
-        status = " (cadastrado)" if available.get(provider, {}).get("api_key") else ""
-        marker = " (atual)" if provider == current else ""
-        print(f"  {index}. {PROVIDERS[provider]['label']}{status}{marker}")
-    print("  0. Cadastrar uma nova chave")
-    answer = input(f"Escolha o provedor [atual: {current}]: ").strip()
-    if answer == "0":
-        configure_key(config)
-        return choose_provider(config)
-    if answer.isdigit() and 1 <= int(answer) <= len(PROVIDERS):
-        selected = list(PROVIDERS)[int(answer) - 1]
-        if not available.get(selected, {}).get("api_key") and not get_key({**config, "provider": selected}):
-            print("Esse provedor ainda não tem chave cadastrada. Escolha 0 para cadastrar.")
-            return choose_provider(config)
-        config["provider"] = selected
-        config["model"] = PROVIDER_MODELS[selected][0][0]
-        save_config(config)
-        return selected
-    return current
-
-
 def choose_model(config: dict[str, Any]) -> str:
     current = config.get("model", DEFAULT_MODEL)
-    provider = config.get("provider", "gemini")
-    options = PROVIDER_MODELS.get(provider, PROVIDER_MODELS["gemini"])
-    print(f"\nModelo {PROVIDERS.get(provider, {}).get('label', provider)}")
-    print("A disponibilidade gratuita depende da cota e do provedor escolhido.")
+    options = MODEL_OPTIONS
+    print("\nModelo Gemini")
+    print("A disponibilidade gratuita depende da cota da sua conta Google AI Studio.")
     for index, (model, description) in enumerate(options, 1):
         marker = " (atual)" if model == current else ""
         print(f"  {index}. {model} — {description}{marker}")
@@ -616,7 +523,7 @@ def prompt_context(root: Path) -> str:
 
 def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:
     contents = [{"role": "user", "parts": [{"text": prompt_context(root) + "\n\nPedido do usuário:\n" + prompt}]}]
-    return chat_request(config, [{"role": "user", "content": contents[0]["parts"][0]["text"]}])
+    return gemini(config, contents)
 
 
 def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile: str) -> None:
@@ -634,7 +541,6 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
                 print(f"\nCOTA ESGOTADA: {message}")
                 retry = input("Continuar com outro provedor ou modelo? [S/n] ").strip().lower()
                 if retry in {"", "s", "sim", "y", "yes"}:
-                    choose_provider(config)
                     choose_model(config)
                     print("Retomando exatamente do ponto interrompido...")
                     continue
@@ -690,12 +596,11 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
 def interactive(config: dict[str, Any]) -> None:
     mode = "agora"
     profile = choose_ai_profile(config)
-    provider = choose_provider(config)
     model = choose_model(config)
     root = choose_project(config)
     print(f"\n{APP_NAME}")
     print(f"Workspace: {root}")
-    print(f"Perfil: {profile} | Provedor: {PROVIDERS[provider]['label']} | Modelo: {model}")
+    print(f"Perfil: {profile} | Provedor: Gemini | Modelo: {model}")
     print("Digite um pedido. O plano será executado automaticamente, com proteção contra comandos destrutivos.")
     print("Comandos: /help, /workspace CAMINHO, /files, /package, /quit")
     state_file = root / ".gemini-agent-state.json"

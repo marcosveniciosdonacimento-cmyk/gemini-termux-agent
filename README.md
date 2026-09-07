@@ -1,6 +1,6 @@
 # Gemini Termux Agent
 
-Agente local de desenvolvimento para Termux usando Gemini, Groq ou OpenRouter. O código é público; as chaves, a configuração e os projetos ficam somente no aparelho de cada usuário.
+Agente local de desenvolvimento para Termux usando exclusivamente a Gemini API. O código é público; a chave, a configuração e os projetos ficam somente no aparelho de cada usuário.
 
 > O GitHub armazena o código. A execução acontece localmente no Termux e depende das ferramentas disponíveis no aparelho.
 
@@ -72,9 +72,7 @@ crie ou copie uma chave no [Google AI Studio](https://aistudio.google.com/apikey
 
 Esse arquivo não é enviado ao GitHub.
 
-O cadastro permite escolher **Gemini**, **Groq** ou **OpenRouter**. Depois de validar uma chave, o agente pergunta `Cadastrar outra chave? [s/N]`; responda `S` para adicionar outro provedor ou `N` para terminar. As chaves ficam separadas por provedor no arquivo local. Antes de cada projeto, escolha o provedor cadastrado e depois o modelo correspondente. Groq e OpenRouter usam suas APIs compatíveis com OpenAI; os modelos e cotas gratuitas dependem das regras atuais de cada serviço.
-
-Se a cota ou o limite de requisições acabar, o agente informa o erro e pergunta `Continuar com outro provedor ou modelo? [S/n]`. Com `S`, você escolhe outra opção numerada e a tarefa retoma o ponto salvo; com `N`, o projeto permanece preservado e a execução é pausada.
+O cadastro usa uma única chave Gemini. Se a cota ou o limite de requisições acabar, o agente informa o erro e pergunta `Continuar com outro modelo? [S/n]`. Com `S`, você escolhe outro modelo Gemini e a tarefa retoma o ponto salvo; com `N`, o projeto permanece preservado e a execução é pausada.
 
 ## Uso diário
 
@@ -139,7 +137,7 @@ O aplicativo deve mostrar apenas “Hello, world!” centralizado na tela. Use K
 
 ## Modelo e perfil
 
-O modelo padrão do Gemini é `gemini-3.5-flash`. Antes de iniciar o projeto, o agente permite selecionar o provedor e um modelo por número ou digitar outro nome. A disponibilidade gratuita depende da cota e das regras atuais do provedor.
+O modelo padrão do Gemini é `gemini-3.5-flash`. Antes de iniciar o projeto, o agente permite selecionar um modelo Gemini por número ou digitar outro nome. A disponibilidade gratuita depende da cota atual da sua conta Google AI Studio.
 
 Para trocar o modelo diretamente:
 
