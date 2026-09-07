@@ -39,6 +39,7 @@ SYSTEM_PROMPT = """Você é o Gemini Termux Agent, um assistente de desenvolvime
 Você ajuda o usuário a criar e compilar projetos no workspace atual.
 Responda em português do Brasil quando o usuário escrever em português.
 Se precisar executar algo, proponha comandos explícitos em um bloco ```bash``` e explique o objetivo.
+Quando o usuário pedir um projeto, não pare apenas na explicação ou na instalação: entregue os comandos completos para criar os arquivos, configurar, testar, compilar e exportar o resultado. Depois de cada etapa, aguarde o resultado informado pelo agente local e continue o plano até concluir.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
 Não invente que executou comandos: apenas o agente local pode executar comandos, e ele os executará automaticamente dentro do workspace.
 Prefira comandos reproduzíveis, sem apagar dados e sem ações destrutivas.
@@ -377,6 +378,40 @@ def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:
     return gemini(config, contents)
 
 
+def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile: str) -> None:
+    """Executa um plano em ciclos: dependências, arquivos, testes, build e exportação."""
+    current_prompt = prompt
+    previous_answer = ""
+    for round_number in range(1, 9):
+        answer = ask_once(config, root, current_prompt)
+        print(f"\nGemini (etapa {round_number})>\n{answer}")
+        commands = extract_commands(answer)
+        if not commands:
+            if round_number == 1:
+                current_prompt = "Continue automaticamente. A resposta anterior não trouxe comandos executáveis. Agora forneça os comandos completos para criar os arquivos do projeto e depois compilar. Não pare na explicação."
+                previous_answer = answer
+                continue
+            print("\nO Gemini informou que não há mais comandos nesta etapa.")
+            break
+        print("\nPlano de execução automático:")
+        for index, command in enumerate(commands, 1):
+            print(f"  {index}. {command}")
+        if not execute_commands(root, commands, mode, profile_name=profile):
+            break
+        copied = copy_artifacts_to_downloads(root)
+        for path in copied:
+            print(f"Arquivo enviado automaticamente para Downloads: {path}")
+        previous_answer = answer
+        current_prompt = (
+            "A etapa anterior foi executada pelo agente local. Continue o mesmo trabalho até concluir o pedido original. "
+            "Verifique os arquivos atuais do workspace, não repita comandos que já funcionaram, e forneça agora os próximos comandos completos em blocos bash. "
+            "Se o APK/ZIP ainda não existir, crie, teste, compile e copie para ~/storage/downloads/. "
+            f"Resposta anterior resumida: {previous_answer[-1500:]}"
+        )
+    else:
+        print("Limite de 8 etapas atingido; o workspace foi preservado para continuar depois.")
+
+
 def interactive(config: dict[str, Any]) -> None:
     mode = choose_mode(config)
     profile = choose_ai_profile(config)
@@ -428,22 +463,7 @@ def interactive(config: dict[str, Any]) -> None:
                 print(f"Falha ao empacotar: {exc}")
             continue
         try:
-            answer = ask_once(config, root, prompt)
-            print("\nGemini>\n" + answer)
-            commands = extract_commands(answer)
-            if commands:
-                print("\nPlano de execução automático:")
-                for index, command in enumerate(commands, 1):
-                    print(f"  {index}. {command}")
-                if execute_commands(root, commands, mode, profile_name=profile):
-                    print("\nExecução concluída ou interrompida por erro.")
-                    copied = copy_artifacts_to_downloads(root)
-                    if copied:
-                        print("Arquivos enviados automaticamente para Downloads:")
-                        for path in copied:
-                            print(f"  {path}")
-                    else:
-                        print("Nenhum APK, AAB ou ZIP foi encontrado para enviar.")
+            run_task(config, root, prompt, mode, profile)
         except Exception as exc:
             print(f"Erro: {exc}")
 
