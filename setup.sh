@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 pkg update -y
+pkg upgrade -y
 pkg install -y python git zip unzip
 termux-setup-storage || true
 chmod 700 gemini_termux_agent.py run.sh setup.sh

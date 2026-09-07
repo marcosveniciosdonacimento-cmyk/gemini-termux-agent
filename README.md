@@ -16,7 +16,7 @@ Como o repositório é público, você pode fazer praticamente tudo com um únic
 pkg update -y && pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent/main/install.sh | bash
 ```
 
-Esse comando baixa/atualiza o agente, instala as ferramentas, cria o comando global `gemini`, solicita e valida a chave e abre o menu de projetos. Depois da primeira instalação, basta executar:
+Esse comando atualiza os pacotes do Termux, instala as ferramentas, solicita a permissão de armazenamento, baixa/atualiza o agente, cria o comando global `gemini`, solicita e valida a chave e abre o menu de projetos. Depois da primeira instalação, basta executar:
 
 ```bash
 gemini
@@ -55,7 +55,7 @@ cd ~/projetos/meu-app
 
 Ao abrir, o agente mostra um menu numerado com as pastas de `~/projetos`. Escolha um projeto existente ou selecione **Criar novo projeto**, informe o nome e converse com o Gemini dentro dele. O último projeto selecionado fica salvo para a próxima abertura. Durante a instalação, o Termux também solicitará a permissão de armazenamento.
 
-Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência, com uma pausa curta entre comandos para aliviar o aparelho. Não haverá confirmação `s/n` para cada etapa. Ao final, o agente pergunta uma única vez se deve copiar APK, AAB ou ZIP para `~/storage/downloads/`.
+Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência, com uma pausa curta entre comandos para aliviar o aparelho. Essas etapas podem incluir criação de arquivos, instalação de dependências do projeto, configuração, testes e compilação — não ficam limitadas aos comandos básicos do Termux. Não haverá confirmação `s/n` para cada etapa. Ao final, o agente pergunta uma única vez se deve copiar APK, AAB ou ZIP para `~/storage/downloads/`.
 
 Exemplos de pedidos:
 
