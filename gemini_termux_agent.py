@@ -47,6 +47,7 @@ Você ajuda o usuário a criar e compilar projetos no workspace atual.
 Responda em português do Brasil quando o usuário escrever em português.
 Se precisar executar algo, proponha comandos explícitos em um bloco ```bash``` e explique o objetivo.
 Quando o usuário pedir um projeto, não pare apenas na explicação ou na instalação: entregue os comandos completos para criar os arquivos, configurar, testar, compilar e exportar o resultado. Depois de cada etapa, aguarde o resultado informado pelo agente local e continue o plano até concluir.
+Para aplicativos Android, o pedido precisa conter explicitamente o nome do aplicativo e o nome do pacote Java/Kotlin (por exemplo, com.example.helloworld). Se um deles estiver ausente, peça esses dois dados antes de criar o projeto.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
 Não invente que executou comandos: apenas o agente local pode executar comandos, e ele os executará automaticamente dentro do workspace.
 Prefira comandos reproduzíveis, sem apagar dados e sem ações destrutivas.
@@ -358,6 +359,19 @@ def command_label(command: str) -> str:
     return first[:100]
 
 
+def file_targets(command: str) -> list[str]:
+    """Extrai destinos reais de arquivos em redirecionamentos e here-docs."""
+    targets = re.findall(r"(?:cat|tee)\s+(?:-[^\s]+\s+)*>\s*([^\s<]+)", command)
+    targets += re.findall(r"(?:cat|tee)\s+<<[-\w]+\s+([^\s]+)", command)
+    targets += re.findall(r"(?:>|>>|2>)\s*([^\s;&|]+)", command)
+    result: list[str] = []
+    for target in targets:
+        target = target.strip("'\"")
+        if target not in result and not target.startswith("/dev/"):
+            result.append(target)
+    return result
+
+
 def extract_commands(answer: str) -> list[str]:
     blocks = re.findall(r"```(?:bash|sh|shell)?\s*\n(.*?)```", answer, flags=re.S | re.I)
     commands: list[str] = []
@@ -405,17 +419,28 @@ def execute_commands(root: Path, commands: list[str], mode: str = "agora", start
         if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
             print(f"Bloqueado por segurança: {command}")
             continue
-        label = command_label(command)
-        print(f"\nConstruindo: {label} ...", flush=True)
+        targets = file_targets(command)
+        if targets:
+            print("", flush=True)
+            for target in targets:
+                print(f"Construindo arquivo: {target} ...", flush=True)
+        else:
+            print(f"\nConstruindo: {command_label(command)} ...", flush=True)
         code, output = execute_command(root, command)
         if code != 0:
             print("X", flush=True)
+            for target in targets:
+                print(f"{target} X", flush=True)
             print(output or "(sem saída)")
             print(f"Código de saída: {code}")
             (root / ".gemini-agent-last-error.txt").write_text(f"Comando:\n{command}\n\nSaída:\n{output}\n", encoding="utf-8")
             print("A etapa falhou; o próximo ciclo tentará corrigir automaticamente.")
             return False
-        print("√", flush=True)
+        if targets:
+            for target in targets:
+                print(f"{target} √", flush=True)
+        else:
+            print("√", flush=True)
         if output:
             print(output)
         completed_any = True

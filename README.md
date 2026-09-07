@@ -68,6 +68,8 @@ Compile o APK debug e me diga onde ficou o arquivo.
 Empacote o resultado para eu copiar para Downloads.
 ```
 
+Para aplicativos Android, informe sempre os dois dados no prompt: **nome do aplicativo** e **nome do pacote**. Exemplo: `Nome do app: HelloWorld; pacote: com.exemplo.helloworld`. O nome do pacote deve usar letras minúsculas, números e pontos, sem espaços. Durante a construção, o painel mostra os caminhos reais dos arquivos encontrados, como `app/src/main/AndroidManifest.xml`, seguidos de `√` quando concluídos ou `X` quando a etapa falha.
+
 Comandos locais disponíveis dentro do agente:
 
 | Comando | Função |

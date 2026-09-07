@@ -29,6 +29,10 @@ class AgentTests(unittest.TestCase):
         answer = """```bash\ncat > settings.gradle <<'EOF'\nrootProject.name = 'HelloWorld'\nEOF\n```"""
         self.assertIn("cat > settings.gradle", agent.extract_commands(answer)[0])
 
+    def test_file_targets_are_reported(self):
+        command = "cat > app/src/main/AndroidManifest.xml <<'EOF'\n<manifest/>\nEOF"
+        self.assertIn("app/src/main/AndroidManifest.xml", agent.file_targets(command))
+
     def test_command_pause_is_positive(self):
         self.assertGreater(agent.COMMAND_PAUSE_SECONDS, 0)
         self.assertEqual(agent.NIGHT_PAUSE_SECONDS, 1800)
