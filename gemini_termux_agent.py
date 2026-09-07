@@ -116,32 +116,42 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
     if not key:
         raise RuntimeError("Chave Gemini não configurada. Execute: python gemini_termux_agent.py --setup")
     model = config.get("model", DEFAULT_MODEL)
+    models_to_try = [model] + [candidate for candidate in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-3.7-flash"] if candidate != model]
     profile = AI_PROFILES.get(config.get("ai_profile", "alto"), AI_PROFILES["alto"])
     body = {
         "system_instruction": {"parts": [{"text": system}]},
         "contents": contents,
         "generationConfig": {"temperature": profile["temperature"], "maxOutputTokens": profile["max_output_tokens"]},
     }
-    request = urllib.request.Request(
-        API_URL.format(model=model),
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-goog-api-key": key},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        if exc.code in (401, 403):
-            raise RuntimeError("A chave foi recusada. Verifique/restrinja sua chave no Google AI Studio.") from exc
-        raise RuntimeError(f"Gemini API HTTP {exc.code}: {detail[:500]}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"Falha de rede ao acessar a Gemini API: {exc.reason}") from exc
-    text = extract_text(payload)
-    if not text:
-        raise RuntimeError(f"A API não retornou texto: {json.dumps(payload)[:500]}")
-    return text
+    last_error = ""
+    for attempt, candidate_model in enumerate(models_to_try):
+        request = urllib.request.Request(
+            API_URL.format(model=candidate_model),
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json", "x-goog-api-key": key},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=180) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            text = extract_text(payload)
+            if not text:
+                raise RuntimeError(f"A API não retornou texto: {json.dumps(payload)[:500]}")
+            if candidate_model != model:
+                print(f"Modelo {model} indisponível; usando temporariamente {candidate_model}.")
+            return text
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            if exc.code in (401, 403):
+                raise RuntimeError("A chave foi recusada. Verifique/restrinja sua chave no Google AI Studio.") from exc
+            last_error = f"HTTP {exc.code}: {detail[:500]}"
+            if exc.code != 503:
+                raise RuntimeError(last_error) from exc
+            if attempt < len(models_to_try) - 1:
+                time.sleep(2)
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"Falha de rede ao acessar a Gemini API: {exc.reason}") from exc
+    raise RuntimeError(f"Todos os modelos estão indisponíveis temporariamente. Último erro: {last_error}")
 
 
 def workspace_root(config: dict[str, Any]) -> Path:
@@ -306,10 +316,9 @@ def extract_commands(answer: str) -> list[str]:
     blocks = re.findall(r"```(?:bash|sh|shell)?\s*\n(.*?)```", answer, flags=re.S | re.I)
     commands: list[str] = []
     for block in blocks:
-        for line in block.splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                commands.append(line)
+        block = block.strip()
+        if block and not all(not line.strip() or line.strip().startswith("#") for line in block.splitlines()):
+            commands.append(block)
     return commands
 
 
@@ -356,7 +365,8 @@ def execute_commands(root: Path, commands: list[str], mode: str = "agora", start
         print(f"Código de saída: {code}")
         completed_any = True
         if code != 0:
-            print("A etapa falhou; o agente parou para preservar o projeto.")
+            (root / ".gemini-agent-last-error.txt").write_text(f"Comando:\n{command}\n\nSaída:\n{output}\n", encoding="utf-8")
+            print("A etapa falhou; o próximo ciclo tentará corrigir automaticamente.")
             return completed_any
         state_file.write_text(json.dumps({"mode": mode, "commands": commands, "next_index": index}, ensure_ascii=False, indent=2), encoding="utf-8")
         if index < len(commands):
@@ -397,7 +407,14 @@ def run_task(config: dict[str, Any], root: Path, prompt: str, mode: str, profile
         for index, command in enumerate(commands, 1):
             print(f"  {index}. {command}")
         if not execute_commands(root, commands, mode, profile_name=profile):
-            break
+            error_file = root / ".gemini-agent-last-error.txt"
+            error = error_file.read_text(encoding="utf-8", errors="replace")[-6000:] if error_file.exists() else "erro desconhecido"
+            current_prompt = (
+                "A etapa anterior falhou. Corrija automaticamente o problema e continue o pedido original. "
+                "Não repita a causa sem corrigir. Verifique o workspace e forneça um bloco bash completo com a correção e os próximos passos.\n\n"
+                + error
+            )
+            continue
         copied = copy_artifacts_to_downloads(root)
         for path in copied:
             print(f"Arquivo enviado automaticamente para Downloads: {path}")

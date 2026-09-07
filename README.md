@@ -57,6 +57,8 @@ Ao abrir, o agente mostra somente três escolhas simples: **Agora** ou **Madruga
 
 Quando o Gemini sugerir etapas, elas serão executadas automaticamente em sequência. Essas etapas podem incluir criação de arquivos, instalação de dependências do projeto, configuração, testes e compilação — não ficam limitadas aos comandos básicos do Termux. O modo **Agora** pausa 3 segundos entre comandos. O modo **Madrugada** pausa 30 minutos entre comandos para reduzir chamadas à API; isso é um temporizador local e não garante, por si só, uma cota específica do Google. O próximo índice é salvo em `.gemini-agent-state.json`, então se o Termux for interrompido, a próxima abertura retoma a partir da etapa seguinte. Ao finalizar, APK, AAB e ZIP encontrados são enviados automaticamente para `~/storage/downloads/`.
 
+Os blocos de terminal são executados como blocos completos, incluindo comandos multilinha usados para criar arquivos. Se uma etapa falhar, o erro é salvo, enviado ao próximo ciclo do Gemini e o agente tenta corrigir e continuar automaticamente. Indisponibilidade temporária `503` da Gemini API também aciona retentativas e fallback entre modelos compatíveis.
+
 Exemplos de pedidos:
 
 ```text

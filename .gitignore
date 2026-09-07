@@ -5,6 +5,7 @@ __pycache__/
 config.json
 .gemini-agent-state.json
 .gemini-agent-profile
+.gemini-agent-last-error.txt
 artifacts/
 *.zip
 *.apk

@@ -23,7 +23,7 @@ class AgentTests(unittest.TestCase):
 
     def test_extract_commands_from_bash_block(self):
         answer = """Faça assim:\n```bash\npwd\npython -m unittest\n```"""
-        self.assertEqual(agent.extract_commands(answer), ["pwd", "python -m unittest"])
+        self.assertEqual(agent.extract_commands(answer), ["pwd\npython -m unittest"])
 
     def test_command_pause_is_positive(self):
         self.assertGreater(agent.COMMAND_PAUSE_SECONDS, 0)
