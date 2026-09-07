@@ -83,6 +83,7 @@ class AgentTests(unittest.TestCase):
         self.assertIn("REQUIRED_PACKAGES", setup)
         self.assertNotIn("EXTRA_PACKAGES", setup)
         self.assertIn("installed-packages.txt", setup)
+        self.assertIn("environment-prepared", setup)
 
 
 if __name__ == "__main__":

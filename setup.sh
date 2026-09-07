@@ -9,10 +9,21 @@ pkg upgrade -y
 REQUIRED_PACKAGES=(python git zip unzip openjdk-17 gradle clang make cmake pkg-config findutils coreutils sed grep tar)
 CONFIG_DIR="$HOME/.config/gemini-termux-agent"
 INSTALLED_FILE="$CONFIG_DIR/installed-packages.txt"
+PREPARED_FILE="$CONFIG_DIR/environment-prepared"
 mkdir -p "$CONFIG_DIR"
 chmod 700 "$CONFIG_DIR"
 touch "$INSTALLED_FILE"
 chmod 600 "$INSTALLED_FILE"
+
+if [ ! -f "$PREPARED_FILE" ]; then
+  printf '\nPrimeira preparação: atualizando os repositórios do Termux.\n'
+  pkg update -y
+  pkg upgrade -y
+  touch "$PREPARED_FILE"
+  chmod 600 "$PREPARED_FILE"
+else
+  printf '\nReutilizando a preparação existente; pkg update/upgrade não será repetido.\n'
+fi
 
 is_installed() {
   local package="$1"

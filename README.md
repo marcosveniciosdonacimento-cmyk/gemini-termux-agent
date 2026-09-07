@@ -52,9 +52,9 @@ cd ~/gemini-termux-agent
 bash setup.sh
 ```
 
-O instalador atualiza os pacotes e instala somente as ferramentas essenciais, uma por vez, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/14] Instalando pacote essencial: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar.
+Na primeira preparação, o instalador atualiza os pacotes e instala somente as ferramentas essenciais, uma por vez, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/14] Instalando pacote essencial: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar.
 
-Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. O instalador mantém um inventário em `~/.config/gemini-termux-agent/installed-packages.txt` e também confere o estado real do dpkg. Assim, em uma atualização ou reinstalação, pacotes já instalados são reconhecidos e não são baixados novamente. Cada pacote novo tem até três tentativas; se um essencial falhar, a instalação para para não iniciar o agente incompleto.
+Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. O instalador mantém um inventário em `~/.config/gemini-termux-agent/installed-packages.txt`, um marcador de preparação em `~/.config/gemini-termux-agent/environment-prepared` e também confere o estado real do dpkg. Assim, em uma atualização ou reinstalação, `pkg update`, `pkg upgrade` e pacotes já instalados não são repetidos. Cada pacote novo tem até três tentativas; se um essencial falhar, a instalação para para não iniciar o agente incompleto.
 
 ### 6. Cadastrar a chave
 
