@@ -7,5 +7,7 @@ pkg install -y python git zip unzip
 chmod 700 gemini_termux_agent.py run.sh setup.sh
 mkdir -p "$HOME/.config/gemini-termux-agent"
 chmod 700 "$HOME/.config/gemini-termux-agent"
+ln -sf "$PWD/run.sh" "$PREFIX/bin/gemini"
 python gemini_termux_agent.py --setup
-printf '\nInstalação concluída. Para iniciar novamente:\n  ./run.sh\n'
+printf '\nInstalação concluída. O comando global agora é: gemini\n'
+exec "$PREFIX/bin/gemini"

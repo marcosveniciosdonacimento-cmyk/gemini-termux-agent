@@ -8,6 +8,24 @@ Um agente local para Termux que usa a Gemini API como assistente de desenvolvime
 
 Instale o [Termux pelo F-Droid ou GitHub oficial](https://github.com/termux/termux-app), abra-o e execute:
 
+### Instalação automática
+
+Como o repositório é público, você pode fazer praticamente tudo com um único comando:
+
+```bash
+pkg update -y && pkg install -y curl && curl -fsSL https://raw.githubusercontent.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent/main/install.sh | bash
+```
+
+Esse comando baixa/atualiza o agente, instala as ferramentas, cria o comando global `gemini`, solicita e valida a chave e abre o menu de projetos. Depois da primeira instalação, basta executar:
+
+```bash
+gemini
+```
+
+### Instalação manual
+
+Se preferir não executar um instalador remoto diretamente, use o fluxo abaixo:
+
 ```bash
 pkg update -y && pkg install -y git
 cd ~
