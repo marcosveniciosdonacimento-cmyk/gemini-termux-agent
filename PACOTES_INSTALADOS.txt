@@ -1,0 +1,28 @@
+PACOTES INSTALADOS PELO setup.sh
+================================
+
+O instalador executa `pkg update -y` e `pkg upgrade -y` antes desta lista.
+
+Pacotes solicitados diretamente por `pkg install`:
+
+python
+git
+zip
+unzip
+openjdk-17
+gradle
+clang
+make
+cmake
+pkg-config
+findutils
+coreutils
+sed
+grep
+tar
+
+Observações:
+- O Termux também instala dependências adicionais exigidas por esses pacotes.
+- A lista de dependências adicionais pode variar conforme a arquitetura, a versão do Termux e os pacotes já instalados.
+- `termux-setup-storage` não é um pacote: é um comando que cria o acesso do Termux ao armazenamento compartilhado do Android.
+- O script tenta instalar os pacotes até três vezes e atualiza os índices entre as tentativas.

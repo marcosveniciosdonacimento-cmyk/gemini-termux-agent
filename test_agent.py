@@ -52,6 +52,16 @@ class AgentTests(unittest.TestCase):
     def test_model_options_include_default(self):
         self.assertTrue(any(model == agent.DEFAULT_MODEL for model, _ in agent.MODEL_OPTIONS))
 
+    def test_providers_have_models_and_key_urls(self):
+        self.assertEqual(set(agent.PROVIDERS), {"gemini", "groq", "openrouter"})
+        for provider in agent.PROVIDERS:
+            self.assertTrue(agent.PROVIDERS[provider]["key_url"])
+            self.assertTrue(agent.PROVIDER_MODELS[provider])
+
+    def test_provider_key_lookup_is_separate(self):
+        config = {"provider": "groq", "providers": {"groq": {"api_key": "gsk_test"}, "gemini": {"api_key": "AIza_test"}}}
+        self.assertEqual(agent.get_key(config), "gsk_test")
+
 
 if __name__ == "__main__":
     unittest.main()
