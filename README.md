@@ -52,9 +52,9 @@ cd ~/gemini-termux-agent
 bash setup.sh
 ```
 
-Na primeira preparação, o instalador atualiza os pacotes e instala somente as ferramentas essenciais, uma por vez, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/14] Instalando pacote essencial: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep e tar.
+Na primeira preparação, o instalador atualiza os pacotes e instala somente as ferramentas essenciais, uma por vez, em uma fila visível, antes de abrir o agente. Você verá mensagens como `[1/21] Instalando pacote essencial: python`, a saída normal do Termux e `OK` antes de o próximo pacote começar. O conjunto inclui Python, Git, Zip, Unzip, OpenJDK 17, Gradle, Clang, Make, CMake, pkg-config, findutils, coreutils, sed, grep, tar, aapt, aapt2, apksigner, d8, ecj e android-tools.
 
-Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. O instalador mantém um inventário em `~/.config/gemini-termux-agent/installed-packages.txt`, um marcador de preparação em `~/.config/gemini-termux-agent/environment-prepared` e também confere o estado real do dpkg. Assim, em uma atualização ou reinstalação, `pkg update`, `pkg upgrade` e pacotes já instalados não são repetidos. Cada pacote novo tem até três tentativas; se um essencial falhar, a instalação para para não iniciar o agente incompleto.
+Se aparecer uma pergunta de armazenamento, responda `y` e permita o acesso quando o Android solicitar. O instalador mantém um inventário em `~/.config/gemini-termux-agent/installed-packages.txt`, um marcador de preparação em `~/.config/gemini-termux-agent/environment-prepared` e também confere o estado real do dpkg. Assim, em uma atualização ou reinstalação, `pkg update`, `pkg upgrade` e pacotes já instalados não são repetidos. Cada pacote novo tem até três tentativas; se um essencial falhar, a instalação para para não iniciar o agente incompleto. Ao final, ele verifica se os executáveis Android realmente existem.
 
 ### 6. Cadastrar a chave
 
@@ -97,7 +97,7 @@ app/src/main/AndroidManifest.xml √
 
 No provedor Gemini, a criação usa Tool Calling nativo: `create_file` escreve o conteúdo no disco real do workspace e `run_shell_command` executa os comandos nele. O retorno de cada ferramenta é enviado novamente à API como `function_response`, para que o modelo veja o resultado real e corrija falhas. O agente não transforma mais blocos de markdown ou explicações em execução: uma tarefa de projeto só começa quando o Gemini chama uma dessas ferramentas. Se houver erro de escrita no armazenamento ou na cópia para Downloads, o Termux exibe a mensagem no terminal.
 
-Para pedidos de compilação ou exportação, o agente não aceita uma resposta textual como conclusão. Ele verifica a existência de um APK, AAB ou ZIP real, copia o artefato para `~/storage/downloads/`, confirma a presença do arquivo nessa pasta e, se ainda não existir, reenvia automaticamente o objetivo original ao Gemini para continuar a construção. São feitas até seis verificações automáticas; se a API ou uma dependência estiver indisponível, o terminal informa a causa em vez de declarar sucesso falso.
+Para pedidos de compilação ou exportação, o agente não aceita uma resposta textual como conclusão. Ele verifica a existência de um APK, AAB ou ZIP real, copia o artefato para `~/storage/downloads/`, confirma a presença do arquivo nessa pasta e, se ainda não existir, reenvia automaticamente o objetivo original ao Gemini para continuar a construção. São feitas até seis verificações automáticas; se a API ou uma dependência estiver indisponível, o terminal informa a causa em vez de declarar sucesso falso. Ao compilar Android, o agente usa o `gradle` instalado pelo Termux; não deve usar `gradle init`, criar um `gradlew` manual incompleto ou ativar o plugin `com.gradle.enterprise`.
 
 Quando uma etapa falhar:
 

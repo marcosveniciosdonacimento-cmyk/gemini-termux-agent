@@ -1,9 +1,9 @@
 PACOTES ESSENCIAIS INSTALADOS PELO setup.sh
 ============================================
 
-O instalador executa `pkg update -y` e `pkg upgrade -y` uma vez durante a preparação.
+O instalador executa `pkg update -y` e `pkg upgrade -y` somente na primeira preparação.
 
-Pacotes essenciais processados individualmente:
+Pacotes essenciais de projeto e compilação:
 
 python
 git
@@ -21,11 +21,24 @@ sed
 grep
 tar
 
+Ferramentas Android adicionadas para APK:
+
+aapt
+aapt2
+apksigner
+d8
+ecj
+android-tools
+
 Comportamento:
-- O setup.sh verifica se cada pacote já está instalado com dpkg.
+- O setup.sh verifica cada pacote individualmente com dpkg.
 - Pacotes já instalados são pulados e não são baixados novamente.
 - Pacotes novos são instalados um por vez, em sequência visível.
+- Ao final, o setup verifica java, javac, gradle, aapt, aapt2, apksigner, d8 e ecj.
 - O inventário persistente fica em `~/.config/gemini-termux-agent/installed-packages.txt`.
-- Se um pacote essencial falhar após três tentativas, o instalador para e informa o erro.
-- Dependências extras específicas de um projeto podem variar, mas o agente não repete a preparação geral do Termux a cada projeto.
+- A preparação dos repositórios fica marcada em `~/.config/gemini-termux-agent/environment-prepared`.
+- Se um pacote essencial ou uma ferramenta Android obrigatória faltar, o setup para e informa o nome exato.
 - `termux-setup-storage` não é um pacote: cria os atalhos de acesso ao armazenamento do Android.
+
+Observação importante:
+Java, Gradle e as ferramentas Termux são necessários, mas um projeto Android também precisa de uma plataforma Android/API compatível. O agente deve verificar isso antes do build e informar a ausência real em vez de declarar sucesso.

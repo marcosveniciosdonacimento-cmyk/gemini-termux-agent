@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -48,7 +49,9 @@ Responda em português do Brasil quando o usuário escrever em português.
 	Para alterar o workspace, use obrigatoriamente as ferramentas nativas `create_file` e `run_shell_command`; não simule a criação escrevendo apenas texto. Use `create_file` para cada arquivo e `run_shell_command` para instalar, testar e compilar. Confira o retorno das ferramentas e corrija erros reais.
 	O instalador já preparou as ferramentas essenciais antes desta sessão. Não execute `pkg install`, `pkg update` ou `pkg upgrade` durante um projeto. Consulte o inventário informado pelo agente e só instale uma dependência específica se ela realmente estiver ausente e for indispensável.
 	Quando o usuário pedir um projeto, não faça perguntas se o pedido já contém os dados necessários. Inicie imediatamente uma chamada `create_file` ou `run_shell_command`. Nunca simule progresso em texto e nunca encerre uma etapa de projeto apenas com explicações. Continue usando as ferramentas até criar, testar, compilar e exportar o resultado.
-Para aplicativos Android, o pedido precisa conter explicitamente o nome do aplicativo e o nome do pacote Java/Kotlin (por exemplo, com.example.helloworld). Se um deles estiver ausente, peça esses dois dados antes de criar o projeto.
+	Para aplicativos Android, o pedido precisa conter explicitamente o nome do aplicativo e o nome do pacote Java/Kotlin (por exemplo, com.example.helloworld). Se um deles estiver ausente, peça esses dois dados antes de criar o projeto.
+		Para Android, não use `gradle init`, não misture Gradle Groovy e Kotlin DSL, não crie cópias de MainActivity, strings.xml ou build.gradle em locais diferentes e não tente compilar antes de criar uma estrutura única e completa. Use `create_file` para os arquivos do projeto e só use `run_shell_command` para verificar ferramentas, permissões, dependências, testar e compilar. Antes do build, confirme que o Android SDK e uma plataforma Android estão disponíveis; se não estiverem, informe o bloqueio real em vez de fingir que compilou.
+		Use o executável `gradle` instalado pelo setup para compilar; não crie manualmente um arquivo `gradlew` incompleto e não use `./gradlew` se o wrapper não existir completo. Não use plugins experimentais ou `com.gradle.enterprise`; mantenha uma única configuração Android compatível com as ferramentas detectadas.
 Nunca peça para o usuário revelar chaves, senhas ou tokens.
 Não invente que executou comandos: apenas o agente local pode executar comandos, e ele os executará automaticamente dentro do workspace.
 Prefira comandos reproduzíveis, sem apagar dados e sem ações destrutivas.
@@ -141,6 +144,8 @@ def execute_tool(root: Path, name: str, args: dict[str, Any]) -> dict[str, Any]:
                 raise ValueError("Comando vazio.")
             if any(bad in command for bad in [" rm -rf /", "mkfs", ":(){", "dd if=", "shutdown", "reboot"]):
                 raise ValueError("Comando bloqueado por segurança.")
+            if re.search(r"(^|[;&|])\s*gradle\s+init\b|(^|\s)gradle\s+init\b", command):
+                raise ValueError("gradle init bloqueado: crie os arquivos completos do projeto com create_file; não gere um projeto genérico incompleto.")
             print(f"Construindo: {command[:100]} ...", flush=True)
             code, output = execute_command(root, command)
             if code != 0:
@@ -206,6 +211,8 @@ def gemini(config: dict[str, Any], contents: list[dict[str, Any]], system: str =
             if exc.code in (401, 403):
                 raise RuntimeError("A chave foi recusada. Verifique/restrinja sua chave no Google AI Studio.") from exc
             last_error = f"HTTP {exc.code}: {detail[:500]}"
+            if exc.code == 429:
+                raise RuntimeError(f"COTA ESGOTADA: {last_error}") from exc
             if exc.code not in (429, 500, 502, 503, 504):
                 raise RuntimeError(last_error) from exc
             if attempt < len(models_to_try) - 1:
@@ -551,7 +558,16 @@ def execute_commands(root: Path, commands: list[str], mode: str = "agora", start
 def prompt_context(root: Path) -> str:
     inventory = Path.home() / ".config" / "gemini-termux-agent" / "installed-packages.txt"
     installed = inventory.read_text(encoding="utf-8", errors="replace") if inventory.exists() else "inventário ainda não criado"
-    return f"Workspace atual: {root}\nFerramentas essenciais preparadas (não reinstalar):\n{installed}\nArquivos existentes:\n{list_files(root)}"
+    java = shutil.which("java") or "não encontrado"
+    gradle = shutil.which("gradle") or "não encontrado"
+    sdkmanager = shutil.which("sdkmanager") or "não encontrado"
+    android_home = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT") or "não definido"
+    return (
+        f"Workspace atual: {root}\n"
+        f"Ferramentas essenciais preparadas (não reinstalar):\n{installed}\n"
+        f"Diagnóstico Android: java={java}; gradle={gradle}; sdkmanager={sdkmanager}; Android SDK={android_home}\n"
+        f"Arquivos existentes:\n{list_files(root)}"
+    )
 
 
 def ask_once(config: dict[str, Any], root: Path, prompt: str) -> str:

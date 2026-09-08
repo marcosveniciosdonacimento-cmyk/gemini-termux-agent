@@ -86,6 +86,12 @@ class AgentTests(unittest.TestCase):
             self.assertTrue(result["ok"])
             self.assertTrue((root / "real.txt").is_file())
 
+    def test_gradle_init_is_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = agent.execute_tool(Path(tmp).resolve(), "run_shell_command", {"command": "gradle init --type basic"})
+            self.assertFalse(result["ok"])
+            self.assertIn("gradle init bloqueado", result["error"])
+
     def test_artifact_request_detection(self):
         self.assertTrue(agent.task_requests_artifact("compile o APK debug"))
         self.assertTrue(agent.task_requests_artifact("crie um ZIP do projeto"))
@@ -106,6 +112,8 @@ class AgentTests(unittest.TestCase):
         self.assertNotIn("EXTRA_PACKAGES", setup)
         self.assertIn("installed-packages.txt", setup)
         self.assertIn("environment-prepared", setup)
+        for package in ("aapt", "aapt2", "apksigner", "d8", "ecj", "android-tools"):
+            self.assertIn(package, setup)
 
 
 if __name__ == "__main__":

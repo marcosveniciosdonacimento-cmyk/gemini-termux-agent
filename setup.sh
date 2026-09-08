@@ -2,11 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-pkg update -y
-pkg upgrade -y
-
-# Apenas ferramentas essenciais para construir e empacotar aplicativos.
-REQUIRED_PACKAGES=(python git zip unzip openjdk-17 gradle clang make cmake pkg-config findutils coreutils sed grep tar)
+# Ferramentas essenciais para projetos e empacotamento Android no Termux.
+REQUIRED_PACKAGES=(python git zip unzip openjdk-17 gradle clang make cmake pkg-config findutils coreutils sed grep tar aapt aapt2 apksigner d8 ecj android-tools)
 CONFIG_DIR="$HOME/.config/gemini-termux-agent"
 INSTALLED_FILE="$CONFIG_DIR/installed-packages.txt"
 PREPARED_FILE="$CONFIG_DIR/environment-prepared"
@@ -76,7 +73,17 @@ for package in "${REQUIRED_PACKAGES[@]}"; do
   install_one "$package" "$NUMBER" "$TOTAL"
 done
 
-printf '\nPreparação concluída: todas as ferramentas essenciais estão disponíveis.\n'
+printf '\nVerificando ferramentas Android essenciais...\n'
+for tool in java javac gradle aapt aapt2 apksigner d8 ecj; do
+  if command -v "$tool" >/dev/null 2>&1; then
+    printf '  OK: %s -> %s\n' "$tool" "$(command -v "$tool")"
+  else
+    printf '  ERRO: ferramenta não encontrada após a instalação: %s\n' "$tool" >&2
+    exit 1
+  fi
+done
+
+printf '\nPreparação concluída: ferramentas de compilação e empacotamento estão disponíveis.\n'
 printf 'Nenhuma ferramenta extra de web, pesquisa ou mídia será instalada.\n'
 termux-setup-storage || true
 chmod 700 gemini_termux_agent.py run.sh setup.sh
