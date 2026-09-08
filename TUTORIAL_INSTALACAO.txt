@@ -1,0 +1,134 @@
+TUTORIAL SIMPLES — GEMINI TERMUX AGENT
+========================================
+
+PASSO 1 — Abra o Termux
+
+Instale o Termux pelo F-Droid ou pelo GitHub oficial. Abra o aplicativo.
+
+PASSO 2 — Escolha o espelho
+
+Execute:
+
+termux-change-repo
+
+Na primeira tela, deixe Mirror group selecionado e pressione Enter.
+Na segunda tela, deixe All mirrors selecionado e pressione Enter.
+
+PASSO 3 — Atualize o Termux
+
+Execute um comando por vez:
+
+pkg update -y
+
+pkg upgrade -y
+
+PASSO 4 — Instale o Git
+
+pkg install -y git
+
+PASSO 5 — Baixe o agente
+
+cd ~
+
+git clone https://github.com/marcosveniciosdonacimento-cmyk/gemini-termux-agent.git
+
+PASSO 6 — Entre na pasta
+
+cd ~/gemini-termux-agent
+
+PASSO 7 — Instale e prepare tudo
+
+bash setup.sh
+
+O instalador vai preparar os pacotes essenciais para criar e compilar aplicativos. Ele mostra cada pacote na tela e não baixa novamente o que já estiver instalado.
+
+Se o Termux perguntar:
+
+Do you want to continue? (y/n)
+
+Digite:
+
+y
+
+Se o Android pedir acesso aos arquivos, toque em Permitir.
+
+PASSO 8 — Cadastre a chave Gemini
+
+Quando aparecer:
+
+Cole sua chave Gemini:
+
+Abra:
+
+https://aistudio.google.com/apikey
+
+Copie sua chave, volte ao Termux, cole e pressione Enter.
+A chave não aparece na tela enquanto é colada. Isso é normal.
+
+PASSO 9 — Escolha o perfil e o modelo
+
+Para o primeiro teste:
+
+Perfil: escolha 1 — Alto
+Modelo: escolha um modelo disponível, de preferência o padrão ou Gemini 2.5 Flash.
+
+PASSO 10 — Crie um projeto
+
+No menu, escolha:
+
+1. Criar novo projeto
+
+Digite, por exemplo:
+
+HelloWorld
+
+PASSO 11 — Envie o pedido
+
+Quando aparecer:
+
+Você>
+
+Cole:
+
+Crie um aplicativo Android 14 mínimo.
+
+Nome do aplicativo: HelloWorld
+Nome do pacote: com.exemplo.helloworld
+
+Use Kotlin. Mostre apenas Hello, world! centralizado na tela. Use as ferramentas reais create_file e run_shell_command. Crie os arquivos reais do projeto, verifique as ferramentas Android, compile o APK debug, corrija erros reais e copie o APK final para ~/storage/downloads/.
+
+Pressione Enter e aguarde.
+
+PASSO 12 — Verifique o resultado
+
+O agente deve mostrar arquivos com √ durante a criação. No final, verifique a pasta Downloads:
+
+ls -lh ~/storage/downloads/
+
+O APK deverá aparecer em:
+
+Armazenamento interno/Download
+
+USO DIÁRIO
+==========
+
+Depois da instalação inicial, abra o Termux e execute somente:
+
+gemini
+
+Para sair do agente:
+
+/quit
+
+Para atualizar o agente no futuro:
+
+cd ~/gemini-termux-agent
+git pull
+ln -sf "$PWD/run.sh" "$PREFIX/bin/gemini"
+
+OBSERVAÇÃO
+==========
+
+Os arquivos marcados com √ são arquivos reais criados no workspace do Termux. O APK só é considerado concluído quando a compilação termina e o arquivo é encontrado em ~/storage/downloads/.
+
+Se aparecer erro de cota da API, aguarde a renovação da cota. Se aparecer erro de ferramenta Android ou Gradle, anote a mensagem completa antes de tentar novamente.
